@@ -8,7 +8,7 @@ def extract_data():
     dfs = []
 
     client = storage.Client()
-    BUCKET_NAME = 'csv-manufacturing-data-bucket'
+    BUCKET_NAME = 'ad-manufacturing-data-bucket'
     bucket = client.get_bucket(BUCKET_NAME)
 
     blobs = bucket.list_blobs()
@@ -18,31 +18,44 @@ def extract_data():
             print(blob.name)
             content = blob.download_as_string()
             df = pd.read_csv(io.BytesIO(content))
+            # print(df.to_string())
             if 'BREAKS' in df.columns:
                 dfs.append(df)
-
-    # get data folder path
-    folder_path = os.path.join(os.getcwd(), 'dags', 'manufacturing', 'data')
-    # Liste für DataFrames erstellen
-    
     """
-    # Durchlaufe alle Unterordner in folder_path
+    # get data folder path
+    folder_path = os.path.join(os.getcwd(), 'manufacturing', 'data')
+    # Create list for DataFrames
+    
+    # Iterate through all subfolders in folder_path
     for subdir, dirs, files in os.walk(folder_path):
         for file in files:
                 if 'breakdowns' in file:
-                # Überprüfen, ob die Datei eine CSV-Datei ist
+                # Check if the file is a CSV file
                     if file.endswith('.csv'):
-                        # Pfad zur aktuellen CSV-Datei erstellen
+                        # Create a path to the current CSV file
                         file_path = os.path.join(subdir, file)
                         print(file_path)
-                        # CSV-Datei lesen und DataFrame erstellen
+                        # Read the CSV file and create a DataFrame
                         df = pd.read_csv(file_path)
                         if 'BREAKS' in df.columns:
                             dfs.append(df)
     """
 
-    # Alle DataFrames zu einem einzigen DataFrame zusammenführen
+    # Merge all DataFrames into a single DataFrame
     merged_df = pd.concat(dfs, ignore_index=True)
 
-    # DataFrame als Liste von Listen zurückgeben
+    # Set pandas display options to show all columns
+    pd.set_option('display.max_columns', None)
+
+    print("\nDataFrame Head:")
+    print(merged_df.head())
+    print("-" * 20)
+
+    # Return DataFrame as a list of lists
     return merged_df.values.tolist()
+
+
+if __name__ == "__main__":
+    extracted_data = extract_data()
+    print(f"Data extraction complete.")
+    print(f"Extracted {len(extracted_data)} records.")
