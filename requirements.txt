@@ -5,3 +5,7 @@ google-cloud-storage
 google-cloud-bigquery
 google-cloud-aiplatform
 apache-airflow
+db-dtypes
+fastapi
+uvicorn
+joblib

@@ -1,5 +1,12 @@
 from google.cloud import aiplatform
 
+
+print("Define variables for the project")
+PROJECT_ID = "mlops-pipeline-01"
+REGION = "europe-west1"
+ENDPOINT_NAME = "knn-endpoint"
+DEPLOYED_MODEL_NAME = "knn-v1"
+
 def create_endpoint(
     display_name: str, 
     project: str,
@@ -16,7 +23,7 @@ def create_endpoint(
             location=location,
         )
     
-    model_name = "projects/214116934981/locations/europe-west1/models/2566493235694272512"
+    model_name = "projects/71707089683/locations/europe-west1/models/2492392749051936768"
     
     model = aiplatform.Model(model_name=model_name)
 
@@ -35,3 +42,11 @@ def create_endpoint(
     print("Endpoint: ", endpoint.list_models())
 
     return endpoint.display_name
+
+if __name__ == "__main__":
+    create_endpoint(
+        display_name=ENDPOINT_NAME,
+        project=PROJECT_ID,
+        location=REGION,
+        deployed_model_display_name=DEPLOYED_MODEL_NAME
+    )

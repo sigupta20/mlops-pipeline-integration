@@ -1,19 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: imgclass
+  name: knn-inference
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: imageclassifier
+      app: knn-inference
   template:
     metadata:
       labels:
-        app: imageclassifier
+        app: knn-inference
     spec:
+      serviceAccountName: gke-ml-sa
       containers:
-      - name: cv-app
-        image: gcr.io/srivatsan-project/imgwebapp:v1
+      - name: knn-inference
+        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/ml-images/knn-inference:1.0
         ports:
-        - containerPort: 8501
+        - containerPort: 8080

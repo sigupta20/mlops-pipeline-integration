@@ -1,19 +1,22 @@
 from google.cloud import bigquery
+from extract_data import extract_data
+import pandas as pd
 import time 
 
 def prepare_data(manufacturing_data):  
     client = bigquery.Client(
-        project='airflow-408713',
+        project='mlops-pipeline-01',
         location='europe-west1'
     )
    
     # Delete existing table
-    client.query("DROP TABLE IF EXISTS airflow-408713.manufacturing_data.manufacturing;").result()
+    client.query("DROP TABLE IF EXISTS mlops-pipeline-01.manufacturing_data.manufacturing;").result()
+    print("Table dropped successfully!")
 
     time.sleep(10)
     # Create new table
     client.query("""
-    CREATE TABLE airflow-408713.manufacturing_data.manufacturing (
+    CREATE TABLE mlops-pipeline-01.manufacturing_data.manufacturing (
     job_id BIGINT NOT NULL,
     priority BIGINT NOT NULL,
     smd_0 INT64 NOT NULL,
@@ -43,6 +46,7 @@ def prepare_data(manufacturing_data):
     breaks INT64 NOT NULL
 );
     """)
+    print("Table created successfully!")
     time.sleep(10)
 
 
@@ -107,9 +111,14 @@ def prepare_data(manufacturing_data):
 
         rows_to_insert.append(row_to_append)
 
-    errors = client.insert_rows_json("airflow-408713.manufacturing_data.manufacturing", rows_to_insert)
+    errors = client.insert_rows_json("mlops-pipeline-01.manufacturing_data.manufacturing", rows_to_insert)
         
     if errors == []:
         print("New rows have been added.")
     else:
         print("Encountered errors while inserting rows: {}".format(errors))
+
+
+if __name__ == "__main__":
+    data = extract_data()       # Get manufacturing_data from GCS
+    prepare_data(data)          # Load into BigQuery
