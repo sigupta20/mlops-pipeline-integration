@@ -1,4 +1,7 @@
 # mlops_pipeline
+Configure project: gcloud config set project mlops-pipeline-01
+
+
 
 
 ## STEP 5 – Build & Push Image to Artifact Registry
@@ -32,6 +35,12 @@ gcloud iam service-accounts create gke-ml-sa \
 gcloud projects add-iam-policy-binding mlops-pipeline-01 \
   --member="serviceAccount:gke-ml-sa@mlops-pipeline-01.iam.gserviceaccount.com" \
   --role="roles/storage.objectViewer"
+
+
+
+gcloud projects add-iam-policy-binding PROJECT_ID \
+    --member="serviceAccount:SERVICE_ACCOUNT_ID@PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/aiplatform.user"
 
 # Kubernetes Cluster (GKE)
 gcloud container clusters create ml-cluster \
@@ -119,3 +128,100 @@ curl -X POST http://34.52.178.179/predict -H "Content-Type: application/json" \
 https://docs.cloud.google.com/kubernetes-engine/docs/tutorials/agentic-adk-vertex#standard
 https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning
 https://docs.cloud.google.com/vertex-ai/docs/pipelines/introduction
+
+
+## Vertex AI pipeline implementation steps
+
+# 1. Enable API
+gcloud services enable artifactregistry.googleapis.com
+
+# 2. Create repo (if missing)
+gcloud artifacts repositories create ml-images \
+  --repository-format=docker \
+  --location=europe-west1 \
+  --project=mlops-pipeline-01
+
+# 3. Authenticate Docker
+gcloud auth configure-docker europe-west1-docker.pkg.dev
+
+docker build -t europe-west1-docker.pkg.dev/mlops-pipeline-01/ml-images/knn-trainer:1.0 .
+# 4. Push image
+docker push europe-west1-docker.pkg.dev/mlops-pipeline-01/ml-images/knn-trainer:1.0
+
+gcloud builds submit \
+  --project mlops-pipeline-01 \
+  --region europe-west1 \
+  --tag europe-west1-docker.pkg.dev/mlops-pipeline-01/ml-images/knn-trainer:1.0
+
+
+## MLOps Level 2: CI/CD pipeline automation
+extract_data
+   ↓
+prepare_data
+   ↓
+train_knn
+   ↓
+offline_evaluate
+   ↓
+(if metrics pass)
+   ↓
+upload_model
+   ↓
+deploy_model_to_endpoint
+
+
+## File structure
+mlops-pipeline-integration/
+│
+├── pipelines/
+│   ├── manufacturing_knn_pipeline.py     # Vertex AI pipeline DAG
+│   ├── compile_pipeline.py               # Compile pipeline → YAML
+│   └── README.md                          # Pipeline-level documentation
+│
+├── components/
+│   ├── data/
+│   │   ├── extract_data_component.py     # GCS → raw dataset
+│   │   └── prepare_data_component.py     # raw → prepared dataset
+│   │
+│   ├── training/
+│   │   └── train_knn_component.py        # Model training
+│   │
+│   ├── evaluation/
+│   │   ├── evaluate_model_component.py   # Offline evaluation (pipeline gate)
+│   │   └── online_evaluate_model_component.py  # Production monitoring
+│   │
+│   ├── deployment/
+│   │   ├── upload_model_component.py     # Model Registry
+│   │   └── deploy_endpoint_component.py  # Endpoint deployment
+│   │
+│   └── __init__.py
+│
+├── ci/
+│   ├── cloudbuild.yaml                   # CI/CD pipeline
+│   └── triggers.md                       # CI/CD trigger explanation
+│
+├── config/
+│   ├── dev.yaml                          # Dev environment config
+│   ├── prod.yaml                         # Prod environment config
+│   └── base.yaml                         # Shared config
+│
+├── scripts/
+│   ├── submit_pipeline.py                # Manual pipeline trigger (dev only)
+│   └── trigger_retraining.py             # Trigger pipeline from monitoring
+│
+├── tests/
+│   ├── components/
+│   │   ├── test_extract_data.py
+│   │   ├── test_prepare_data.py
+│   │   ├── test_train_knn.py
+│   │   └── test_evaluate_model.py
+│   │
+│   └── pipelines/
+│       └── test_pipeline_compile.py
+│
+├── Dockerfile                            # Optional (if using custom images)
+├── requirements.txt                     # Local dev dependencies
+├── pyproject.toml                       # Optional modern Python config
+├── .gcloudignore
+├── .gitignore
+└── README.md

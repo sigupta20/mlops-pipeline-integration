@@ -1,0 +1,619 @@
+# PIPELINE DEFINITION
+# Name: manufacturing-knn-training
+# Description: MLOps automated pipeline for training, evaluation and deployment
+# Inputs:
+#    bucket_name: str
+#    endpoint_display_name: str [Default: 'knn-endpoint']
+#    f1_threshold: float [Default: 0.9]
+#    location: str
+#    model_display_name: str [Default: 'knn-model']
+#    project_id: str
+# Outputs:
+#    evaluate-model-op-metrics: system.Metrics
+components:
+  comp-condition-1:
+    dag:
+      tasks:
+        deploy-model-op:
+          cachingOptions:
+            enableCache: true
+          componentRef:
+            name: comp-deploy-model-op
+          dependentTasks:
+          - upload-model-op
+          inputs:
+            artifacts:
+              model_resource:
+                taskOutputArtifact:
+                  outputArtifactKey: model_resource
+                  producerTask: upload-model-op
+            parameters:
+              endpoint_display_name:
+                componentInputParameter: pipelinechannel--endpoint_display_name
+              location:
+                componentInputParameter: pipelinechannel--location
+              project_id:
+                componentInputParameter: pipelinechannel--project_id
+          taskInfo:
+            name: deploy-model-op
+        upload-model-op:
+          cachingOptions:
+            enableCache: true
+          componentRef:
+            name: comp-upload-model-op
+          inputs:
+            artifacts:
+              model:
+                componentInputArtifact: pipelinechannel--train-knn-op-model
+            parameters:
+              display_name:
+                componentInputParameter: pipelinechannel--model_display_name
+              location:
+                componentInputParameter: pipelinechannel--location
+              project_id:
+                componentInputParameter: pipelinechannel--project_id
+          taskInfo:
+            name: upload-model-op
+    inputDefinitions:
+      artifacts:
+        pipelinechannel--train-knn-op-model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+      parameters:
+        pipelinechannel--endpoint_display_name:
+          parameterType: STRING
+        pipelinechannel--evaluate-model-op-deploy_decision:
+          parameterType: STRING
+        pipelinechannel--location:
+          parameterType: STRING
+        pipelinechannel--model_display_name:
+          parameterType: STRING
+        pipelinechannel--project_id:
+          parameterType: STRING
+  comp-deploy-model-op:
+    executorLabel: exec-deploy-model-op
+    inputDefinitions:
+      artifacts:
+        model_resource:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        endpoint_display_name:
+          parameterType: STRING
+        location:
+          parameterType: STRING
+        machine_type:
+          defaultValue: n1-standard-4
+          isOptional: true
+          parameterType: STRING
+        max_replica_count:
+          defaultValue: 1.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        min_replica_count:
+          defaultValue: 1.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        project_id:
+          parameterType: STRING
+  comp-evaluate-model-op:
+    executorLabel: exec-evaluate-model-op
+    inputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        prepared_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        f1_threshold:
+          defaultValue: 0.9
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      artifacts:
+        metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+      parameters:
+        deploy_decision:
+          parameterType: STRING
+  comp-extract-data-op:
+    executorLabel: exec-extract-data-op
+    inputDefinitions:
+      parameters:
+        bucket_name:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-prepare-data-op:
+    executorLabel: exec-prepare-data-op
+    inputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        prepared_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-train-knn-op:
+    executorLabel: exec-train-knn-op
+    inputDefinitions:
+      artifacts:
+        prepared_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        n_neighbors:
+          defaultValue: 5.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+    outputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+  comp-upload-model-op:
+    executorLabel: exec-upload-model-op
+    inputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+      parameters:
+        display_name:
+          parameterType: STRING
+        location:
+          parameterType: STRING
+        project_id:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        model_resource:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-deploy-model-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - deploy_model_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'google-cloud-aiplatform'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef deploy_model_op(\n    project_id: str,\n    location: str,\n\
+          \    endpoint_display_name: str,\n    model_resource: Input[Artifact], \
+          \ # \u2705 Artifact input\n    machine_type: str = \"n1-standard-4\",\n\
+          \    min_replica_count: int = 1,\n    max_replica_count: int = 1,\n):\n\
+          \    from google.cloud import aiplatform\n\n    aiplatform.init(project=project_id,\
+          \ location=location)\n\n    # \U0001F511 READ model resource name from Artifact\n\
+          \    with open(model_resource.path, \"r\") as f:\n        model_name = f.read().strip()\n\
+          \n    print(\"Deploying model:\", model_name)\n\n    endpoints = aiplatform.Endpoint.list(\n\
+          \        filter=f'display_name=\"{endpoint_display_name}\"'\n    )\n\n \
+          \   if endpoints:\n        endpoint = endpoints[0]\n        print(\"Using\
+          \ existing endpoint:\", endpoint.resource_name)\n    else:\n        endpoint\
+          \ = aiplatform.Endpoint.create(\n            display_name=endpoint_display_name\n\
+          \        )\n        print(\"Created new endpoint:\", endpoint.resource_name)\n\
+          \n    model = aiplatform.Model(model_name)\n\n    endpoint.deploy(\n   \
+          \     model=model,\n        deployed_model_display_name=f\"{endpoint_display_name}-model\"\
+          ,\n        machine_type=machine_type,\n        min_replica_count=min_replica_count,\n\
+          \        max_replica_count=max_replica_count,\n        traffic_percentage=100,\n\
+          \        sync=True,\n    )\n\n    print(\"Model deployed successfully\"\
+          )\n\n"
+        image: gcr.io/deeplearning-platform-release/base-cpu.py310
+    exec-evaluate-model-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - evaluate_model_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas' 'scikit-learn'\
+          \ 'joblib' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef evaluate_model_op(\n    model: Input[Model],\n    prepared_data:\
+          \ Input[Dataset],\n    metrics: Output[Metrics],\n    f1_threshold: float\
+          \ = 0.9,\n) -> NamedTuple(\"Outputs\", [(\"deploy_decision\", str)]):\n\
+          \    import pandas as pd\n    import joblib\n    import json\n    import\
+          \ os\n\n    from sklearn.metrics import f1_score, accuracy_score\n    from\
+          \ sklearn.model_selection import train_test_split\n\n    # -------------------------------\n\
+          \    # 1. Load model\n    # -------------------------------\n    model_path\
+          \ = os.path.join(model.path, \"model.joblib\")\n    knn = joblib.load(model_path)\n\
+          \n    # -------------------------------\n    # 2. Load prepared data\n \
+          \   # -------------------------------\n    data_path = os.path.join(prepared_data.path,\
+          \ \"prepared_data.csv\")\n    df = pd.read_csv(data_path)\n\n    X = df.drop(\"\
+          breaks\", axis=1)\n    y = df[\"breaks\"]\n\n    # -------------------------------\n\
+          \    # 3. Evaluation split\n    # -------------------------------\n    _,\
+          \ X_test, _, y_test = train_test_split(\n        X, y, test_size=0.3, random_state=52\n\
+          \    )\n\n    # -------------------------------\n    # 4. Predict & evaluate\n\
+          \    # -------------------------------\n    y_pred = knn.predict(X_test)\n\
+          \n    y_test_binary = (y_test != 0).astype(int)\n    y_pred_binary = (y_pred\
+          \ != 0).astype(int)\n\n    f1 = f1_score(y_test_binary, y_pred_binary)\n\
+          \    accuracy = accuracy_score(y_test, y_pred)\n\n    metrics_dict = {\n\
+          \        \"f1_score\": f1,\n        \"accuracy\": accuracy,\n    }\n\n \
+          \   # -------------------------------\n    # 5. Save metrics artifact\n\
+          \    # -------------------------------\n    deploy = f1 >= f1_threshold\n\
+          \n    metrics.log_metric(\"f1_score\", f1)\n    metrics.log_metric(\"accuracy\"\
+          , accuracy)\n    return (\"true\" if deploy else \"false\",)\n\n"
+        image: gcr.io/deeplearning-platform-release/base-cpu.py310:latest
+    exec-extract-data-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - extract_data_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas' 'google-cloud-storage<3'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef extract_data_op(\n    bucket_name: str,\n    raw_data: Output[Dataset],\n\
+          ):\n    import pandas as pd\n    from google.cloud import storage\n    import\
+          \ io\n    import os\n\n    client = storage.Client()\n    bucket = client.bucket(bucket_name)\n\
+          \n    dfs = []\n\n    for blob in bucket.list_blobs():\n        if blob.name.endswith(\"\
+          _breakdowns.csv\"):\n            print(blob.name)\n            content =\
+          \ blob.download_as_string()\n            df = pd.read_csv(io.BytesIO(content))\n\
+          \n            if \"BREAKS\" in df.columns:\n                dfs.append(df)\n\
+          \n    if not dfs:\n        raise RuntimeError(\"No valid CSV files found\
+          \ in bucket\")\n\n    # Merge all DataFrames into a single DataFrame\n \
+          \   merged_df = pd.concat(dfs, ignore_index=True)\n\n    os.makedirs(raw_data.path,\
+          \ exist_ok=True)\n    output_path = os.path.join(raw_data.path, \"raw_data.csv\"\
+          )\n    merged_df.to_csv(output_path, index=False)\n\n    print(f\"Raw data\
+          \ written to {output_path}\")\n\n"
+        image: gcr.io/deeplearning-platform-release/base-cpu.py310:latest
+    exec-prepare-data-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - prepare_data_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas' &&\
+          \ \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef prepare_data_op(\n    raw_data: Input[Dataset],\n    prepared_data:\
+          \ Output[Dataset],\n):\n    import pandas as pd\n    import os\n\n    #\
+          \ -------------------------------\n    # 1. Load raw data\n    # -------------------------------\n\
+          \    raw_data_path = os.path.join(raw_data.path, \"raw_data.csv\")\n\n \
+          \   # Raw file has no header (column positions are fixed)\n    df = pd.read_csv(raw_data_path)\n\
+          \n    prepared_rows = []\n\n    # -------------------------------\n    #\
+          \ 2. Row-wise feature engineering\n    # -------------------------------\n\
+          \    for _, row in df.iterrows():\n        first_stage  = row.iloc[3]\n\
+          \        second_stage = row.iloc[7]\n        third_stage  = row.iloc[11]\n\
+          \        fourth_stage = row.iloc[15]\n\n        prepared_rows.append({\n\
+          \            # Identifiers / metadata\n            \"job_id\": row.iloc[0],\n\
+          \            \"priority\": row.iloc[1],\n\n            # -------- First\
+          \ stage (SMD) --------\n            \"smd_0\": int(first_stage == \"SMD_0\"\
+          ),\n            \"smd_1\": int(first_stage == \"SMD_1\"),\n            \"\
+          smd_2\": int(first_stage == \"SMD_2\"),\n            \"smd_3\": int(first_stage\
+          \ == \"SMD_3\"),\n            \"smd_4\": int(first_stage == \"SMD_4\"),\n\
+          \            \"processing_time_s1\": row.iloc[6],\n\n            # --------\
+          \ Second stage (AOI) --------\n            \"aoi_0\": int(second_stage ==\
+          \ \"AOI_0\"),\n            \"aoi_1\": int(second_stage == \"AOI_1\"),\n\
+          \            \"aoi_2\": int(second_stage == \"AOI_2\"),\n            \"\
+          aoi_3\": int(second_stage == \"AOI_3\"),\n            \"aoi_4\": int(second_stage\
+          \ == \"AOI_4\"),\n            \"processing_time_s2\": row.iloc[10],\n\n\
+          \            # -------- Third stage (SS) --------\n            \"ss_0\"\
+          : int(third_stage == \"SS_0\"),\n            \"ss_1\": int(third_stage ==\
+          \ \"SS_1\"),\n            \"ss_2\": int(third_stage == \"SS_2\"),\n    \
+          \        \"ss_3\": int(third_stage == \"SS_3\"),\n            \"ss_4\":\
+          \ int(third_stage == \"SS_4\"),\n            \"processing_time_s3\": row.iloc[14],\n\
+          \n            # -------- Fourth stage (CC) --------\n            \"cc_0\"\
+          : int(fourth_stage == \"CC_0\"),\n            \"cc_1\": int(fourth_stage\
+          \ == \"CC_1\"),\n            \"processing_time_s4\": row.iloc[18],\n\n \
+          \           # -------- Global KPIs --------\n            \"overall_processing_time\"\
+          : row.iloc[19],\n            \"overall_waiting_time\": row.iloc[20],\n \
+          \           \"tardiness\": row.iloc[21],\n\n            # -------- Target\
+          \ --------\n            \"breaks\": row.iloc[22],\n        })\n\n    # -------------------------------\n\
+          \    # 3. Save prepared dataset\n    # -------------------------------\n\
+          \    prepared_df = pd.DataFrame(prepared_rows)\n\n    os.makedirs(prepared_data.path,\
+          \ exist_ok=True)\n    output_path = os.path.join(prepared_data.path, \"\
+          prepared_data.csv\")\n    prepared_df.to_csv(output_path, index=False)\n\
+          \n    print(\"Prepared data written to:\", output_path)\n\n"
+        image: gcr.io/deeplearning-platform-release/base-cpu.py310:latest
+    exec-train-knn-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_knn_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas' 'scikit-learn'\
+          \ 'joblib' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_knn_op(\n    prepared_data: Input[Dataset],\n    model:\
+          \ Output[Model],\n    n_neighbors: int = 5,\n):\n    import pandas as pd\n\
+          \    import joblib\n    import os\n\n    from sklearn.neighbors import KNeighborsClassifier\n\
+          \n    # -------------------------------\n    # 1. Load prepared dataset\n\
+          \    # -------------------------------\n    data_path = os.path.join(prepared_data.path,\
+          \ \"prepared_data.csv\")\n    df = pd.read_csv(data_path)\n\n    # -------------------------------\n\
+          \    # 2. Split features / target\n    # -------------------------------\n\
+          \    X = df.drop(\"breaks\", axis=1)\n    y = df[\"breaks\"]\n\n    # -------------------------------\n\
+          \    # 3. Train KNN model (FULL DATA)\n    # -------------------------------\n\
+          \    knn = KNeighborsClassifier(\n        n_neighbors=n_neighbors,\n   \
+          \     metric=\"minkowski\",\n    )\n    knn.fit(X, y)\n\n    # -------------------------------\n\
+          \    # 4. Save model artifact\n    # -------------------------------\n \
+          \   os.makedirs(model.path, exist_ok=True)\n    model_path = os.path.join(model.path,\
+          \ \"model.joblib\")\n    joblib.dump(knn, model_path)\n\n    print(\"Model\
+          \ training completed\")\n    print(f\"Model saved to: {model_path}\")\n\n"
+        image: gcr.io/deeplearning-platform-release/base-cpu.py310:latest
+    exec-upload-model-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - upload_model_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'google-cloud-aiplatform'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef upload_model_op(\n    project_id: str,\n    location: str,\n\
+          \    model: Input[Model],\n    display_name: str,\n    model_resource: Output[Artifact],\n\
+          ):\n    from google.cloud import aiplatform\n\n    aiplatform.init(project=project_id,\
+          \ location=location)\n\n    artifact_uri = model.path\n\n    # \u2705 ALWAYS\
+          \ use a SERVING container\n    serving_container_image_uri = (\n       \
+          \ \"europe-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest\"\n\
+          \    )\n\n    existing_models = aiplatform.Model.list(\n        filter=f'display_name=\"\
+          {display_name}\"'\n    )\n\n    if existing_models:\n        uploaded_model\
+          \ = aiplatform.Model.upload(\n            display_name=display_name,\n \
+          \           parent_model=existing_models[0].resource_name,\n           \
+          \ artifact_uri=artifact_uri,\n            serving_container_image_uri=serving_container_image_uri,\n\
+          \        )\n        print(\"Uploaded new model version\")\n    else:\n \
+          \       uploaded_model = aiplatform.Model.upload(\n            display_name=display_name,\n\
+          \            artifact_uri=artifact_uri,\n            serving_container_image_uri=serving_container_image_uri,\n\
+          \        )\n        print(\"Uploaded new model\")\n\n    with open(model_resource.path,\
+          \ \"w\") as f:\n        f.write(uploaded_model.resource_name)\n\n    print(\"\
+          Model resource:\", uploaded_model.resource_name)\n\n"
+        image: gcr.io/deeplearning-platform-release/base-cpu.py310
+pipelineInfo:
+  description: MLOps automated pipeline for training, evaluation and deployment
+  name: manufacturing-knn-training
+root:
+  dag:
+    outputs:
+      artifacts:
+        evaluate-model-op-metrics:
+          artifactSelectors:
+          - outputArtifactKey: metrics
+            producerSubtask: evaluate-model-op
+    tasks:
+      condition-1:
+        componentRef:
+          name: comp-condition-1
+        dependentTasks:
+        - evaluate-model-op
+        - train-knn-op
+        inputs:
+          artifacts:
+            pipelinechannel--train-knn-op-model:
+              taskOutputArtifact:
+                outputArtifactKey: model
+                producerTask: train-knn-op
+          parameters:
+            pipelinechannel--endpoint_display_name:
+              componentInputParameter: endpoint_display_name
+            pipelinechannel--evaluate-model-op-deploy_decision:
+              taskOutputParameter:
+                outputParameterKey: deploy_decision
+                producerTask: evaluate-model-op
+            pipelinechannel--location:
+              componentInputParameter: location
+            pipelinechannel--model_display_name:
+              componentInputParameter: model_display_name
+            pipelinechannel--project_id:
+              componentInputParameter: project_id
+        taskInfo:
+          name: condition-1
+        triggerPolicy:
+          condition: inputs.parameter_values['pipelinechannel--evaluate-model-op-deploy_decision']
+            == 'true'
+      evaluate-model-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-evaluate-model-op
+        dependentTasks:
+        - prepare-data-op
+        - train-knn-op
+        inputs:
+          artifacts:
+            model:
+              taskOutputArtifact:
+                outputArtifactKey: model
+                producerTask: train-knn-op
+            prepared_data:
+              taskOutputArtifact:
+                outputArtifactKey: prepared_data
+                producerTask: prepare-data-op
+          parameters:
+            f1_threshold:
+              componentInputParameter: f1_threshold
+        taskInfo:
+          name: evaluate-model-op
+      extract-data-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-extract-data-op
+        inputs:
+          parameters:
+            bucket_name:
+              componentInputParameter: bucket_name
+        taskInfo:
+          name: extract-data-op
+      prepare-data-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-prepare-data-op
+        dependentTasks:
+        - extract-data-op
+        inputs:
+          artifacts:
+            raw_data:
+              taskOutputArtifact:
+                outputArtifactKey: raw_data
+                producerTask: extract-data-op
+        taskInfo:
+          name: prepare-data-op
+      train-knn-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-train-knn-op
+        dependentTasks:
+        - prepare-data-op
+        inputs:
+          artifacts:
+            prepared_data:
+              taskOutputArtifact:
+                outputArtifactKey: prepared_data
+                producerTask: prepare-data-op
+        taskInfo:
+          name: train-knn-op
+  inputDefinitions:
+    parameters:
+      bucket_name:
+        parameterType: STRING
+      endpoint_display_name:
+        defaultValue: knn-endpoint
+        isOptional: true
+        parameterType: STRING
+      f1_threshold:
+        defaultValue: 0.9
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      location:
+        parameterType: STRING
+      model_display_name:
+        defaultValue: knn-model
+        isOptional: true
+        parameterType: STRING
+      project_id:
+        parameterType: STRING
+  outputDefinitions:
+    artifacts:
+      evaluate-model-op-metrics:
+        artifactType:
+          schemaTitle: system.Metrics
+          schemaVersion: 0.0.1
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.7.0

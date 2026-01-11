@@ -1,0 +1,71 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _REGION: europe-west1
+  _PIPELINE_NAME: manufacturing-knn-training-pipeline
+
+steps:
+# ----------------------------------------------------
+# 1. Install dependencies
+# ----------------------------------------------------
+- name: python:3.10
+  id: Install dependencies
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+
+# ----------------------------------------------------
+# 2. Run unit tests
+# ----------------------------------------------------
+- name: python:3.10
+  id: Run tests
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      pytest tests/
+
+# ----------------------------------------------------
+# 3. Compile Vertex AI pipeline
+# ----------------------------------------------------
+- name: python:3.10
+  id: Compile pipeline
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      python pipelines/compile_pipeline.py
+
+# ----------------------------------------------------
+# 4. Upload pipeline to Vertex AI
+# ----------------------------------------------------
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+  id: Upload pipeline
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      gcloud ai pipelines upload \
+        --project=$PROJECT_ID \
+        --region=${_REGION} \
+        --display-name=${_PIPELINE_NAME} \
+        --file=manufacturing_knn_pipeline.yaml
+
+# ----------------------------------------------------
+# 5. (Optional) Trigger pipeline run
+# ----------------------------------------------------
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+  id: Run pipeline
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      gcloud ai pipelines run \
+        --project=$PROJECT_ID \
+        --region=${_REGION} \
+        --pipeline=${_PIPELINE_NAME} \
+        --parameter-values=project_id=$PROJECT_ID,location=${_REGION}

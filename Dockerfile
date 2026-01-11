@@ -2,11 +2,9 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY trainer/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
+COPY trainer/train.py .
 
-EXPOSE 8080
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+ENTRYPOINT ["python", "train.py"]

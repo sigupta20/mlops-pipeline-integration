@@ -4,8 +4,10 @@ numpy
 google-cloud-storage
 google-cloud-bigquery
 google-cloud-aiplatform
-apache-airflow
 db-dtypes
 fastapi
 uvicorn
 joblib
+kfp==2.7.0
+pytest
+pyyaml
