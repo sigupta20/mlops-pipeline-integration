@@ -1,14 +1,14 @@
 from kfp.dsl import component, Input, Artifact
 
 @component(
-    base_image="gcr.io/deeplearning-platform-release/base-cpu.py310",
+    base_image="python:3.10",
     packages_to_install=["google-cloud-aiplatform"],
 )
 def deploy_model_op(
     project_id: str,
     location: str,
     endpoint_display_name: str,
-    model_resource: Input[Artifact],  # ✅ Artifact input
+    model_resource: Input[Artifact],  # Artifact input
     machine_type: str = "n1-standard-4",
     min_replica_count: int = 1,
     max_replica_count: int = 1,
@@ -17,7 +17,7 @@ def deploy_model_op(
 
     aiplatform.init(project=project_id, location=location)
 
-    # 🔑 READ model resource name from Artifact
+    # Read model resource name
     with open(model_resource.path, "r") as f:
         model_name = f.read().strip()
 
@@ -38,6 +38,7 @@ def deploy_model_op(
 
     model = aiplatform.Model(model_name)
 
+    # 🚀 ASYNC DEPLOY (DO NOT WAIT)
     endpoint.deploy(
         model=model,
         deployed_model_display_name=f"{endpoint_display_name}-model",
@@ -45,7 +46,7 @@ def deploy_model_op(
         min_replica_count=min_replica_count,
         max_replica_count=max_replica_count,
         traffic_percentage=100,
-        sync=True,
+        sync=False,  # 🔥 CRITICAL
     )
 
-    print("Model deployed successfully")
+    print("Deployment triggered successfully")

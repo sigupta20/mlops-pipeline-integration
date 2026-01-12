@@ -1,7 +1,7 @@
 from kfp.dsl import component, Dataset, Output
 
 @component(
-    base_image="gcr.io/deeplearning-platform-release/base-cpu.py310:latest",
+    base_image="python:3.10",
     packages_to_install=[
         "pandas",
         "google-cloud-storage<3",

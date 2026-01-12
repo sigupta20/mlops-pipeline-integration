@@ -2,7 +2,7 @@ from typing import NamedTuple
 from kfp.dsl import component, Input, Output, Dataset, Model, Metrics
 
 @component(
-    base_image="gcr.io/deeplearning-platform-release/base-cpu.py310:latest",
+    base_image="python:3.10",
     packages_to_install=["pandas", "scikit-learn", "joblib"],
 )
 def evaluate_model_op(

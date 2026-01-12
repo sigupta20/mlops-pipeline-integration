@@ -2,7 +2,7 @@ from kfp.dsl import component, Dataset, Output, Input
 
 
 @component(
-    base_image="gcr.io/deeplearning-platform-release/base-cpu.py310:latest",
+    base_image="python:3.10",
     packages_to_install=["pandas"],
 )
 def prepare_data_op(

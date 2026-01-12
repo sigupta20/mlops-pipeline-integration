@@ -16,7 +16,6 @@ PIPELINE_PARAMS = {
     "bucket_name": "ad-manufacturing-data-bucket",
     "endpoint_display_name": "knn-endpoint-dev",
     "model_display_name": "knn-model-dev",
-    "container_image_uri": "europe-docker.pkg.dev/vertex-ai/training/sklearn-cpu.1-0:latest",
     "f1_threshold": 0.85,
 }
 

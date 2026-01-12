@@ -1,7 +1,7 @@
 from kfp.dsl import component, Input, Output, Artifact, Model
 
 @component(
-    base_image="gcr.io/deeplearning-platform-release/base-cpu.py310",
+    base_image="python:3.10",
     packages_to_install=["google-cloud-aiplatform"],
 )
 def upload_model_op(
