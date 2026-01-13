@@ -11,57 +11,27 @@ def evaluate_model_op(
     metrics: Output[Metrics],
     f1_threshold: float = 0.9,
 ) -> NamedTuple("Outputs", [("deploy_decision", str)]):
+    import os
     import pandas as pd
     import joblib
-    import json
-    import os
+    from sklearn.metrics import f1_score
 
-    from sklearn.metrics import f1_score, accuracy_score
-    from sklearn.model_selection import train_test_split
-
-    # -------------------------------
-    # 1. Load model
-    # -------------------------------
-    model_path = os.path.join(model.path, "model.joblib")
-    knn = joblib.load(model_path)
-
-    # -------------------------------
-    # 2. Load prepared data
-    # -------------------------------
-    data_path = os.path.join(prepared_data.path, "prepared_data.csv")
-    df = pd.read_csv(data_path)
-
+    # Load data
+    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"))
     X = df.drop("breaks", axis=1)
-    y = df["breaks"]
+    y_true = df["breaks"]
 
-    # -------------------------------
-    # 3. Evaluation split
-    # -------------------------------
-    _, X_test, _, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=52
-    )
+    # Load model
+    clf = joblib.load(os.path.join(model.path, "model.joblib"))
 
-    # -------------------------------
-    # 4. Predict & evaluate
-    # -------------------------------
-    y_pred = knn.predict(X_test)
+    # Predict
+    y_pred = clf.predict(X)
 
-    y_test_binary = (y_test != 0).astype(int)
-    y_pred_binary = (y_pred != 0).astype(int)
+    # Multiclass-safe F1
+    f1 = f1_score(y_true, y_pred, average="weighted")
+    metrics.log_metric("f1_score_weighted", f1)
 
-    f1 = f1_score(y_test_binary, y_pred_binary)
-    accuracy = accuracy_score(y_test, y_pred)
+    print(f"Weighted F1 score: {f1}")
 
-    metrics_dict = {
-        "f1_score": f1,
-        "accuracy": accuracy,
-    }
-
-    # -------------------------------
-    # 5. Save metrics artifact
-    # -------------------------------
-    deploy = f1 >= f1_threshold
-
-    metrics.log_metric("f1_score", f1)
-    metrics.log_metric("accuracy", accuracy)
-    return ("true" if deploy else "false",)
+    decision = "true" if f1 >= f1_threshold else "false"
+    return (decision,)

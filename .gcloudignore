@@ -17,5 +17,6 @@
 **/__pycache__/**
 **/__pycache__/
 kubeFlow/__pycache__/**
+kubeFlow/__pycache__/*.cpython-312.pyc
 # Ignored by the build system
 /setup.cfg

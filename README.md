@@ -225,3 +225,8 @@ mlops-pipeline-integration/
 ├── .gcloudignore
 ├── .gitignore
 └── README.md
+
+## cloud build commands:
+gcloud builds submit   --config cloudbuild.yaml   --substitutions=_MODEL_URI=gs://mlops-pipeline-01-vertex-staging-europe-west1/vertex_ai_auto_staging/2026-01-13-19:31:19.157
+
+gcloud builds submit   --config cloudbuild-deploy.yaml   --substitutions=_IMAGE_URI=europe-docker.pkg.dev/mlops-pipeline-01/ml-images/knn-serving:7137cfa7-33c2-4718-9ccf-95269fda2f34 (Tag)

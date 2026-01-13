@@ -1,20 +1,46 @@
+substitutions:
+  _MODEL_URI: ""
+  _IMAGE_URI: "europe-docker.pkg.dev/mlops-pipeline-01/ml-images/knn-serving"
+
 steps:
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/$PROJECT_ID/imgwebapp:v1', '.']
-  timeout: 180s
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$PROJECT_ID/imgwebapp:v1']
-- name: 'gcr.io/cloud-builders/gcloud'
-  entrypoint: "bash"
-  args:
-  - "-c"
-  - |
-    echo "Docker Container Built"
-    ls -la
-    ls -al models/
-- name: "gcr.io/cloud-builders/gke-deploy"
-  args:
-  - run
-  - --filename=k8s/
-  - --location=us-west1-b
-  - --cluster=project-kube
+  # 1️⃣ Validate input
+  - name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [ -z "${_MODEL_URI}" ]; then
+          echo "ERROR: _MODEL_URI substitution is required"
+          exit 1
+        fi
+        echo "Using model URI: ${_MODEL_URI}"
+
+  # 2️⃣ Download model artifacts
+  - name: "gcr.io/cloud-builders/gsutil"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        mkdir -p model
+        gsutil -m cp -r ${_MODEL_URI}/* model/
+        echo "Downloaded model contents:"
+        ls -lah model
+
+  # 3️⃣ Build serving image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "${_IMAGE_URI}:${BUILD_ID}"
+      - "-f"
+      - "serving/Dockerfile"
+      - "serving"
+
+  # 4️⃣ Push image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "${_IMAGE_URI}:${BUILD_ID}"
+
+images:
+  - "${_IMAGE_URI}:${BUILD_ID}"

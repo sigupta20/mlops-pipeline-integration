@@ -1,9 +1,8 @@
 # PIPELINE DEFINITION
 # Name: manufacturing-knn-training
-# Description: MLOps automated pipeline for training, evaluation and deployment
+# Description: Train, evaluate and register KNN model
 # Inputs:
 #    bucket_name: str
-#    endpoint_display_name: str [Default: 'knn-endpoint']
 #    f1_threshold: float [Default: 0.9]
 #    location: str
 #    model_display_name: str [Default: 'knn-model']
@@ -14,33 +13,11 @@ components:
   comp-condition-1:
     dag:
       tasks:
-        deploy-model-op:
+        register-model-op:
           cachingOptions:
             enableCache: true
           componentRef:
-            name: comp-deploy-model-op
-          dependentTasks:
-          - upload-model-op
-          inputs:
-            artifacts:
-              model_resource:
-                taskOutputArtifact:
-                  outputArtifactKey: model_resource
-                  producerTask: upload-model-op
-            parameters:
-              endpoint_display_name:
-                componentInputParameter: pipelinechannel--endpoint_display_name
-              location:
-                componentInputParameter: pipelinechannel--location
-              project_id:
-                componentInputParameter: pipelinechannel--project_id
-          taskInfo:
-            name: deploy-model-op
-        upload-model-op:
-          cachingOptions:
-            enableCache: true
-          componentRef:
-            name: comp-upload-model-op
+            name: comp-register-model-op
           inputs:
             artifacts:
               model:
@@ -53,7 +30,7 @@ components:
               project_id:
                 componentInputParameter: pipelinechannel--project_id
           taskInfo:
-            name: upload-model-op
+            name: register-model-op
     inputDefinitions:
       artifacts:
         pipelinechannel--train-knn-op-model:
@@ -61,8 +38,6 @@ components:
             schemaTitle: system.Model
             schemaVersion: 0.0.1
       parameters:
-        pipelinechannel--endpoint_display_name:
-          parameterType: STRING
         pipelinechannel--evaluate-model-op-deploy_decision:
           parameterType: STRING
         pipelinechannel--location:
@@ -70,33 +45,6 @@ components:
         pipelinechannel--model_display_name:
           parameterType: STRING
         pipelinechannel--project_id:
-          parameterType: STRING
-  comp-deploy-model-op:
-    executorLabel: exec-deploy-model-op
-    inputDefinitions:
-      artifacts:
-        model_resource:
-          artifactType:
-            schemaTitle: system.Artifact
-            schemaVersion: 0.0.1
-      parameters:
-        endpoint_display_name:
-          parameterType: STRING
-        location:
-          parameterType: STRING
-        machine_type:
-          defaultValue: n1-standard-4
-          isOptional: true
-          parameterType: STRING
-        max_replica_count:
-          defaultValue: 1.0
-          isOptional: true
-          parameterType: NUMBER_INTEGER
-        min_replica_count:
-          defaultValue: 1.0
-          isOptional: true
-          parameterType: NUMBER_INTEGER
-        project_id:
           parameterType: STRING
   comp-evaluate-model-op:
     executorLabel: exec-evaluate-model-op
@@ -150,27 +98,8 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
-  comp-train-knn-op:
-    executorLabel: exec-train-knn-op
-    inputDefinitions:
-      artifacts:
-        prepared_data:
-          artifactType:
-            schemaTitle: system.Dataset
-            schemaVersion: 0.0.1
-      parameters:
-        n_neighbors:
-          defaultValue: 5.0
-          isOptional: true
-          parameterType: NUMBER_INTEGER
-    outputDefinitions:
-      artifacts:
-        model:
-          artifactType:
-            schemaTitle: system.Model
-            schemaVersion: 0.0.1
-  comp-upload-model-op:
-    executorLabel: exec-upload-model-op
+  comp-register-model-op:
+    executorLabel: exec-register-model-op
     inputDefinitions:
       artifacts:
         model:
@@ -190,55 +119,27 @@ components:
           artifactType:
             schemaTitle: system.Artifact
             schemaVersion: 0.0.1
+  comp-train-knn-op:
+    executorLabel: exec-train-knn-op
+    inputDefinitions:
+      artifacts:
+        prepared_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        n_neighbors:
+          defaultValue: 5.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+    outputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
 deploymentSpec:
   executors:
-    exec-deploy-model-op:
-      container:
-        args:
-        - --executor_input
-        - '{{$}}'
-        - --function_to_execute
-        - deploy_model_op
-        command:
-        - sh
-        - -c
-        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
-          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
-          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
-          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
-          \  python3 -m pip install --quiet --no-warn-script-location 'google-cloud-aiplatform'\
-          \ && \"$0\" \"$@\"\n"
-        - sh
-        - -ec
-        - 'program_path=$(mktemp -d)
-
-
-          printf "%s" "$0" > "$program_path/ephemeral_component.py"
-
-          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
-
-          '
-        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef deploy_model_op(\n    project_id: str,\n    location: str,\n\
-          \    endpoint_display_name: str,\n    model_resource: Input[Artifact], \
-          \ # Artifact input\n    machine_type: str = \"n1-standard-4\",\n    min_replica_count:\
-          \ int = 1,\n    max_replica_count: int = 1,\n):\n    from google.cloud import\
-          \ aiplatform\n\n    aiplatform.init(project=project_id, location=location)\n\
-          \n    # Read model resource name\n    with open(model_resource.path, \"\
-          r\") as f:\n        model_name = f.read().strip()\n\n    print(\"Deploying\
-          \ model:\", model_name)\n\n    endpoints = aiplatform.Endpoint.list(\n \
-          \       filter=f'display_name=\"{endpoint_display_name}\"'\n    )\n\n  \
-          \  if endpoints:\n        endpoint = endpoints[0]\n        print(\"Using\
-          \ existing endpoint:\", endpoint.resource_name)\n    else:\n        endpoint\
-          \ = aiplatform.Endpoint.create(\n            display_name=endpoint_display_name\n\
-          \        )\n        print(\"Created new endpoint:\", endpoint.resource_name)\n\
-          \n    model = aiplatform.Model(model_name)\n\n    # \U0001F680 ASYNC DEPLOY\
-          \ (DO NOT WAIT)\n    endpoint.deploy(\n        model=model,\n        deployed_model_display_name=f\"\
-          {endpoint_display_name}-model\",\n        machine_type=machine_type,\n \
-          \       min_replica_count=min_replica_count,\n        max_replica_count=max_replica_count,\n\
-          \        traffic_percentage=100,\n        sync=False,  # \U0001F525 CRITICAL\n\
-          \    )\n\n    print(\"Deployment triggered successfully\")\n\n"
-        image: python:3.10
     exec-evaluate-model-op:
       container:
         args:
@@ -269,27 +170,15 @@ deploymentSpec:
           \ *\n\ndef evaluate_model_op(\n    model: Input[Model],\n    prepared_data:\
           \ Input[Dataset],\n    metrics: Output[Metrics],\n    f1_threshold: float\
           \ = 0.9,\n) -> NamedTuple(\"Outputs\", [(\"deploy_decision\", str)]):\n\
-          \    import pandas as pd\n    import joblib\n    import json\n    import\
-          \ os\n\n    from sklearn.metrics import f1_score, accuracy_score\n    from\
-          \ sklearn.model_selection import train_test_split\n\n    # -------------------------------\n\
-          \    # 1. Load model\n    # -------------------------------\n    model_path\
-          \ = os.path.join(model.path, \"model.joblib\")\n    knn = joblib.load(model_path)\n\
-          \n    # -------------------------------\n    # 2. Load prepared data\n \
-          \   # -------------------------------\n    data_path = os.path.join(prepared_data.path,\
-          \ \"prepared_data.csv\")\n    df = pd.read_csv(data_path)\n\n    X = df.drop(\"\
-          breaks\", axis=1)\n    y = df[\"breaks\"]\n\n    # -------------------------------\n\
-          \    # 3. Evaluation split\n    # -------------------------------\n    _,\
-          \ X_test, _, y_test = train_test_split(\n        X, y, test_size=0.3, random_state=52\n\
-          \    )\n\n    # -------------------------------\n    # 4. Predict & evaluate\n\
-          \    # -------------------------------\n    y_pred = knn.predict(X_test)\n\
-          \n    y_test_binary = (y_test != 0).astype(int)\n    y_pred_binary = (y_pred\
-          \ != 0).astype(int)\n\n    f1 = f1_score(y_test_binary, y_pred_binary)\n\
-          \    accuracy = accuracy_score(y_test, y_pred)\n\n    metrics_dict = {\n\
-          \        \"f1_score\": f1,\n        \"accuracy\": accuracy,\n    }\n\n \
-          \   # -------------------------------\n    # 5. Save metrics artifact\n\
-          \    # -------------------------------\n    deploy = f1 >= f1_threshold\n\
-          \n    metrics.log_metric(\"f1_score\", f1)\n    metrics.log_metric(\"accuracy\"\
-          , accuracy)\n    return (\"true\" if deploy else \"false\",)\n\n"
+          \    import os\n    import pandas as pd\n    import joblib\n    from sklearn.metrics\
+          \ import f1_score\n\n    # Load data\n    df = pd.read_csv(os.path.join(prepared_data.path,\
+          \ \"prepared_data.csv\"))\n    X = df.drop(\"breaks\", axis=1)\n    y_true\
+          \ = df[\"breaks\"]\n\n    # Load model\n    clf = joblib.load(os.path.join(model.path,\
+          \ \"model.joblib\"))\n\n    # Predict\n    y_pred = clf.predict(X)\n\n \
+          \   # Multiclass-safe F1\n    f1 = f1_score(y_true, y_pred, average=\"weighted\"\
+          )\n    metrics.log_metric(\"f1_score_weighted\", f1)\n\n    print(f\"Weighted\
+          \ F1 score: {f1}\")\n\n    decision = \"true\" if f1 >= f1_threshold else\
+          \ \"false\"\n    return (decision,)\n\n"
         image: python:3.10
     exec-extract-data-op:
       container:
@@ -399,6 +288,45 @@ deploymentSpec:
           prepared_data.csv\")\n    prepared_df.to_csv(output_path, index=False)\n\
           \n    print(\"Prepared data written to:\", output_path)\n\n"
         image: python:3.10
+    exec-register-model-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - register_model_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'google-cloud-aiplatform'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef register_model_op(\n    project_id: str,\n    location: str,\n\
+          \    model: Input[Model],\n    display_name: str,\n    model_resource: Output[Artifact],\n\
+          ):\n    from google.cloud import aiplatform\n\n    aiplatform.init(project=project_id,\
+          \ location=location)\n\n    artifact_uri = model.path\n    print(f\"Registering\
+          \ model from: {artifact_uri}\")\n\n    uploaded_model = aiplatform.Model.upload(\n\
+          \        display_name=display_name,\n        artifact_uri=artifact_uri,\n\
+          \n        # \U0001F511 REQUIRED \u2014 even if you won't deploy now\n  \
+          \      serving_container_image_uri=\n        \"us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest\"\
+          ,\n\n        sync=True,\n    )\n\n    # Write model resource name for downstream\
+          \ CI/CD\n    with open(model_resource.path, \"w\") as f:\n        f.write(uploaded_model.resource_name)\n\
+          \n    print(\"Model registered:\", uploaded_model.resource_name)\n\n"
+        image: python:3.10
     exec-train-knn-op:
       container:
         args:
@@ -442,53 +370,8 @@ deploymentSpec:
           \ \"model.joblib\")\n    joblib.dump(knn, model_path)\n\n    print(\"Model\
           \ training completed\")\n    print(f\"Model saved to: {model_path}\")\n\n"
         image: python:3.10
-    exec-upload-model-op:
-      container:
-        args:
-        - --executor_input
-        - '{{$}}'
-        - --function_to_execute
-        - upload_model_op
-        command:
-        - sh
-        - -c
-        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
-          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
-          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
-          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
-          \  python3 -m pip install --quiet --no-warn-script-location 'google-cloud-aiplatform'\
-          \ && \"$0\" \"$@\"\n"
-        - sh
-        - -ec
-        - 'program_path=$(mktemp -d)
-
-
-          printf "%s" "$0" > "$program_path/ephemeral_component.py"
-
-          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
-
-          '
-        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef upload_model_op(\n    project_id: str,\n    location: str,\n\
-          \    model: Input[Model],\n    display_name: str,\n    model_resource: Output[Artifact],\n\
-          ):\n    from google.cloud import aiplatform\n\n    aiplatform.init(project=project_id,\
-          \ location=location)\n\n    artifact_uri = model.path\n\n    # \u2705 ALWAYS\
-          \ use a SERVING container\n    serving_container_image_uri = (\n       \
-          \ \"europe-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest\"\n\
-          \    )\n\n    existing_models = aiplatform.Model.list(\n        filter=f'display_name=\"\
-          {display_name}\"'\n    )\n\n    if existing_models:\n        uploaded_model\
-          \ = aiplatform.Model.upload(\n            display_name=display_name,\n \
-          \           parent_model=existing_models[0].resource_name,\n           \
-          \ artifact_uri=artifact_uri,\n            serving_container_image_uri=serving_container_image_uri,\n\
-          \        )\n        print(\"Uploaded new model version\")\n    else:\n \
-          \       uploaded_model = aiplatform.Model.upload(\n            display_name=display_name,\n\
-          \            artifact_uri=artifact_uri,\n            serving_container_image_uri=serving_container_image_uri,\n\
-          \        )\n        print(\"Uploaded new model\")\n\n    with open(model_resource.path,\
-          \ \"w\") as f:\n        f.write(uploaded_model.resource_name)\n\n    print(\"\
-          Model resource:\", uploaded_model.resource_name)\n\n"
-        image: python:3.10
 pipelineInfo:
-  description: MLOps automated pipeline for training, evaluation and deployment
+  description: Train, evaluate and register KNN model
   name: manufacturing-knn-training
 root:
   dag:
@@ -512,8 +395,6 @@ root:
                 outputArtifactKey: model
                 producerTask: train-knn-op
           parameters:
-            pipelinechannel--endpoint_display_name:
-              componentInputParameter: endpoint_display_name
             pipelinechannel--evaluate-model-op-deploy_decision:
               taskOutputParameter:
                 outputParameterKey: deploy_decision
@@ -592,10 +473,6 @@ root:
   inputDefinitions:
     parameters:
       bucket_name:
-        parameterType: STRING
-      endpoint_display_name:
-        defaultValue: knn-endpoint
-        isOptional: true
         parameterType: STRING
       f1_threshold:
         defaultValue: 0.9
