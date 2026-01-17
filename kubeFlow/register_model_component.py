@@ -15,21 +15,16 @@ def register_model_op(
 
     aiplatform.init(project=project_id, location=location)
 
-    artifact_uri = model.path
-    print(f"Registering model from: {artifact_uri}")
+    print(f"Registering model from: {model.path}")
 
     uploaded_model = aiplatform.Model.upload(
         display_name=display_name,
-        artifact_uri=artifact_uri,
-
-        # 🔑 REQUIRED — even if you won't deploy now
+        artifact_uri=model.path,
         serving_container_image_uri=
-        "us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
-
+        "europe-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
         sync=True,
     )
 
-    # Write model resource name for downstream CI/CD
     with open(model_resource.path, "w") as f:
         f.write(uploaded_model.resource_name)
 
