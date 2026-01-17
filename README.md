@@ -230,3 +230,27 @@ mlops-pipeline-integration/
 gcloud builds submit   --config cloudbuild.yaml   --substitutions=_MODEL_URI=gs://mlops-pipeline-01-vertex-staging-europe-west1/vertex_ai_auto_staging/2026-01-13-19:31:19.157
 
 gcloud builds submit   --config cloudbuild-deploy.yaml   --substitutions=_IMAGE_URI=europe-docker.pkg.dev/mlops-pipeline-01/ml-images/knn-serving:7137cfa7-33c2-4718-9ccf-95269fda2f34 (Tag)
+
+
+## endpoints
+to check endpoints:
+gcloud ai endpoints list --region=europe-west1
+
+if endpoints exists, check deployments:
+gcloud ai endpoints describe ENDPOINT_ID \
+  --region=europe-west1
+
+create endpoints for the model:
+gcloud ai endpoints create \
+  --display-name=knn-endpoint-prod \
+  --region=europe-west1
+
+deploy model to the endpoint:
+gcloud ai endpoints deploy-model ENDPOINT_ID \
+  --model=MODEL_ID \
+  --display-name=knn-deployment-prod \
+  --machine-type=n1-standard-2 \
+  --min-replica-count=1 \
+  --max-replica-count=3 \
+  --traffic-split=0=100 \
+  --region=europe-west1

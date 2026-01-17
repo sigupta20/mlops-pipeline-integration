@@ -1,7 +1,7 @@
 substitutions:
   _MODEL_ARTIFACT_URI: ""
   _SERVING_IMAGE_URI: "europe-docker.pkg.dev/mlops-pipeline-01/ml-images/knn-serving"
-  _ENDPOINT_NAME: "knn-endpoint"
+  _ENDPOINT_NAME: "knn-endpoint-prod"
 
 steps:
 - name: gcr.io/cloud-builders/docker

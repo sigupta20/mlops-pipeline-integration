@@ -2,7 +2,6 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install runtime deps
 RUN pip install --no-cache-dir \
     fastapi \
     uvicorn \
@@ -10,10 +9,9 @@ RUN pip install --no-cache-dir \
     joblib \
     numpy
 
-# Copy serving code
 COPY app.py /app/app.py
 
-# Model will be injected at build time
+# Vertex mounts model artifacts here
 ENV MODEL_PATH=/model/model.joblib
 
 EXPOSE 8080
