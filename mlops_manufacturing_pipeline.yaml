@@ -192,14 +192,14 @@ deploymentSpec:
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef extract_data_op(bucket_name: str, raw_data: Output[Dataset]):\n\
           \    import pandas as pd\n    from google.cloud import storage\n    import\
-          \ io, os\n\n    client = storage.Client()\n    bucket = client.bucket(BUCKET_NAME)\n\
+          \ io, os\n\n    client = storage.Client()\n    bucket = client.bucket(bucket_name)\n\
           \    dfs = []\n\n    for blob in bucket.list_blobs():\n        if blob.name.endswith(\"\
           _breakdowns.csv\"):\n            df = pd.read_csv(io.BytesIO(blob.download_as_string()))\n\
           \            if \"BREAKS\" in df.columns:\n                dfs.append(df)\n\
           \n    if not dfs:\n        raise RuntimeError(\"No valid CSV files found\"\
           )\n\n    merged = pd.concat(dfs, ignore_index=True)\n    os.makedirs(raw_data.path,\
           \ exist_ok=True)\n    merged.to_csv(f\"{raw_data.path}/raw_data.csv\", index=False)\n\
-          \    print(f\"Raw data written to {output_path}\")\n\n"
+          \n"
         image: python:3.10
     exec-prepare-data-op:
       container:
@@ -304,7 +304,7 @@ deploymentSpec:
           )\n    X, y = df.drop(\"breaks\", axis=1), df[\"breaks\"]\n\n    clf = KNeighborsClassifier(n_neighbors=5,metric=\"\
           minkowski\")\n    clf.fit(X, y)\n\n    os.makedirs(model.path, exist_ok=True)\n\
           \    joblib.dump(clf, f\"{model.path}/model.joblib\")\n    print(\"Model\
-          \ training completed\")\n    print(f\"Model saved to: {model_path}\")\n\n"
+          \ training completed\")\n\n"
         image: python:3.10
 pipelineInfo:
   name: mlops-manufacturing-dev
@@ -370,8 +370,7 @@ root:
         inputs:
           parameters:
             bucket_name:
-              runtimeValue:
-                constant: mlops-pipeline-01
+              componentInputParameter: bucket_name
         taskInfo:
           name: extract-data-op
       prepare-data-op:
