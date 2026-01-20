@@ -3,15 +3,15 @@ from google.cloud.aiplatform.pipeline_jobs import PipelineJob
 import time
 
 PROJECT_ID = "mlops-pipeline-01"
-REGION = "europe-west1"
+REGION = "europe-west3"
 
-PIPELINE_ROOT = f"gs://ad-manufacturing-data-bucket/pipeline-root-{int(time.time())}"
-PIPELINE_SPEC = "manufacturing_knn_pipeline.yaml"
+PIPELINE_ROOT = f"gs://mlops-pipeline-01/pipeline-root-{int(time.time())}"
+PIPELINE_SPEC = "mlops_manufacturing_pipeline.yaml"
 
 PIPELINE_PARAMS = {
     "project_id": PROJECT_ID,
     "location": REGION,
-    "bucket_name": "ad-manufacturing-data-bucket",
+    "bucket_name": "mlops-pipeline-01",
     "model_display_name": "knn-model-dev",
     "f1_threshold": 0.85,
 }
