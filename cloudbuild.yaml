@@ -22,6 +22,8 @@ steps:
   args:
     - -c
     - |
+      pip install --upgrade pip
+      pip install kfp==2.7.0
       python kubeFlow/compile_pipeline.py
 
 # 3. Submit pipeline (branch-based)
@@ -35,11 +37,11 @@ steps:
 
       if [ "$BRANCH_NAME" = "develop" ]; then
         echo "Running DEV pipeline submission"
-        python submit_dev.py
+        python kubeFlow/submit_dev.py
 
       elif [ "$BRANCH_NAME" = "prod" ] || [ "$BRANCH_NAME" = "main" ]; then
         echo "Running PROD pipeline submission"
-        python submit_prod.py
+        python kubeFlow/submit_prod.py
 
       else
         echo "No pipeline submission for branch: $BRANCH_NAME"
