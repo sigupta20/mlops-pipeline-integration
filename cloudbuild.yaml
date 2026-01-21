@@ -23,7 +23,8 @@ steps:
     - -c
     - |
       pip install --upgrade pip
-      pip install kfp==2.7.0
+      pip install \kfp==2.7.0
+      pip install google-cloud-aiplatform
       python kubeFlow/compile_pipeline.py
 
 # 3. Submit pipeline (branch-based)
