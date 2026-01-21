@@ -1,49 +1,19 @@
-options:
-  logging: CLOUD_LOGGING_ONLY
-
-substitutions:
-  _REGION: europe-west3
-
 steps:
-# 1. Install dependencies
-- name: python:3.10
-  id: Install dependencies
-  entrypoint: bash
-  args:
-    - -c
-    - |
-      pip install --upgrade pip
-      pip install -r requirements.txt
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-t',
+        'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-images/mlops-streamlit:v1',
+        '.'
+      ]
 
-# 2. Compile pipeline
-- name: python:3.10
-  id: Compile pipeline
-  entrypoint: bash
-  args:
-    - -c
-    - |
-      pip install --upgrade pip
-      pip install \kfp==2.7.0
-      pip install google-cloud-aiplatform
-      python kubeFlow/compile_pipeline.py
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'push',
+        'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-images/mlops-streamlit:v1'
+      ]
 
-# 3. Submit pipeline (branch-based)
-- name: python:3.10
-  id: Submit pipeline
-  entrypoint: bash
-  args:
-    - -c
-    - |
-      echo "Branch name: $BRANCH_NAME"
-
-      if [ "$BRANCH_NAME" = "develop" ]; then
-        echo "Running DEV pipeline submission"
-        python kubeFlow/submit_dev.py
-
-      elif [ "$BRANCH_NAME" = "prod" ] || [ "$BRANCH_NAME" = "main" ]; then
-        echo "Running PROD pipeline submission"
-        python kubeFlow/submit_prod.py
-
-      else
-        echo "No pipeline submission for branch: $BRANCH_NAME"
-      fi
+images:
+  - 'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-images/mlops-streamlit:v1'

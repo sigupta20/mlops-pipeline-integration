@@ -1,20 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: knn-inference
+  name: mlops-streamlit
+  namespace: mlops-serving
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: knn-inference
+      app: mlops-streamlit
   template:
     metadata:
       labels:
-        app: knn-inference
+        app: mlops-streamlit
     spec:
-      serviceAccountName: knn-inference-sa
+      serviceAccountName: mlops-serving-ksa
       containers:
-      - name: knn-inference
-        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/ml-images/knn-inference:1.0
-        ports:
-        - containerPort: 8080
+        - name: streamlit
+          image: europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-images/mlops-streamlit:v1
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MODEL_BUCKET
+              value: "mlops-pipeline-01"
+            - name: MODEL_GCS_PATH
+              value: "dev/model/model.joblib"

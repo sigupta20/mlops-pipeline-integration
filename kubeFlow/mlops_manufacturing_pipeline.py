@@ -1,6 +1,6 @@
 from kfp import dsl
 from kfp.dsl import component, Dataset, Input, Output, Model, Metrics, Artifact
-# from google.cloud import aiplatform
+from google.cloud import aiplatform
 from typing import NamedTuple
 import time
 

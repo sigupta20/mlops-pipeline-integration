@@ -1,3 +1,0 @@
-project_id: mlops-pipeline-01
-bucket_name: ad-manufacturing-data-bucket
-f1_threshold: 0.85

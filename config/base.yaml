@@ -1,3 +1,0 @@
-region: europe-west1
-endpoint_name: knn-endpoint
-model_display_name: knn-model

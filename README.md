@@ -24,16 +24,16 @@ docker push europe-west1-docker.pkg.dev/mlops-pipeline-01/ml-images/knn-inferenc
 
 
 ## Create Service Account
-gcloud iam service-accounts create gke-ml-sa
+gcloud iam service-accounts create mlops-sa
 
 or 
 
-gcloud iam service-accounts create gke-ml-sa \
+gcloud iam service-accounts create mlops-sa \
     --project=$PROJECT_ID
 
 ## Grant GCS Read Access
 gcloud projects add-iam-policy-binding mlops-pipeline-01 \
-  --member="serviceAccount:gke-ml-sa@mlops-pipeline-01.iam.gserviceaccount.com" \
+  --member="serviceAccount:mlops-sa@mlops-pipeline-01.iam.gserviceaccount.com" \
   --role="roles/storage.objectViewer"
 
 
@@ -51,12 +51,12 @@ gcloud container clusters create ml-cluster \
   --workload-pool=mlops-pipeline-01.svc.id.goog
 
 
-gcloud container clusters get-credentials ml-cluster \
-  --zone europe-west1-b \
+gcloud container clusters get-credentials mlops-cluster \
+  --zone europe-west3-b \
   --project mlops-pipeline-01
 
 
-kubectl create serviceaccount knn-inference-sa
+kubectl create serviceaccount mlops-serving-ksa
 
 
 kubectl config current-context
