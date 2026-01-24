@@ -12,14 +12,15 @@ gcloud artifacts repositories create mlops-build \
 
 gcloud auth configure-docker europe-west3-docker.pkg.dev
 
-docker build -t mlops-build:1.0.0 .
+docker build -t mlops-build:1.0.1 .
 
-docker tag mlops-build:1.0.0 \
-    europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+docker tag mlops-build:1.0.1 \
+    europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1
 
-docker push europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+docker push europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1
 
-gcloud builds submit --tag europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+gcloud builds submit --tag europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1
 
-
-
+or
+cd build-image
+gcloud builds submit --config=cloudbuild.yaml .

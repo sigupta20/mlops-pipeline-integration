@@ -4,7 +4,7 @@ steps:
       [
         'build',
         '-t',
-        'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-build/mlops-build:1.0.0',
+        'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-build/mlops-build:1.0.1',
         '.'
       ]
 
@@ -12,8 +12,8 @@ steps:
     args:
       [
         'push',
-        'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-build/mlops-build:1.0.0'
+        'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-build/mlops-build:1.0.1'
       ]
 
 images:
-  - 'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-build/mlops-build:1.0.0'
+  - 'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-build/mlops-build:1.0.1'
