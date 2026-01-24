@@ -254,3 +254,12 @@ gcloud ai endpoints deploy-model ENDPOINT_ID \
   --max-replica-count=3 \
   --traffic-split=0=100 \
   --region=europe-west1
+
+
+## deploy streamlit app
+gcloud run deploy knn-streamlit \
+  --image=europe-west1-docker.pkg.dev/PROJECT_ID/ml-images/knn-streamlit:latest \
+  --region=europe-west1 \
+  --platform=managed \
+  --allow-unauthenticated \
+  --set-env-vars MODEL_BUCKET=your-bucket-name,MODEL_GCS_PATH=dev/model/model.joblib
