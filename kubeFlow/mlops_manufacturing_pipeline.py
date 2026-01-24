@@ -7,8 +7,9 @@ import time
 
 # Extract data component
 @component(
-    base_image="python:3.10",
-    packages_to_install=["pandas", "google-cloud-storage<3"]
+    base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    # base_image="python:3.10",
+    # packages_to_install=["pandas", "google-cloud-storage<3"]
 )
 def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
     import pandas as pd
@@ -37,9 +38,10 @@ def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
     print(f"Raw data written to {output_path}")
 
 # Prepare data component
-@component(
-    base_image="python:3.10",
-    packages_to_install=["pandas"]
+@component(   
+    base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    # base_image="python:3.10",
+    # packages_to_install=["pandas"]
 )
 def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
     import pandas as pd
@@ -112,8 +114,9 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 
 # Train model component
 @component(
-    base_image="python:3.10",
-    packages_to_install=["pandas", "scikit-learn", "joblib", "google-cloud-storage"]
+    base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    # base_image="python:3.10",
+    # packages_to_install=["pandas", "scikit-learn", "joblib", "google-cloud-storage"]
 )
 def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_name: str):
     import pandas as pd
@@ -147,8 +150,9 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
 
 # Evaluate model component
 @component(
-    base_image="python:3.10",
-    packages_to_install=["pandas", "scikit-learn", "joblib"],
+    base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    # base_image="python:3.10",
+    # packages_to_install=["pandas", "scikit-learn", "joblib"],
 )
 def evaluate_model_op(
     model: Input[Model],
@@ -181,8 +185,9 @@ def evaluate_model_op(
 
 # Register model to Model Registry
 @component(
-    base_image="python:3.10",
-    packages_to_install=["google-cloud-aiplatform"],
+    base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    # base_image="python:3.10",
+    # packages_to_install=["google-cloud-aiplatform"],
 )
 def register_model_op(
     project_id: str,
