@@ -1,0 +1,6 @@
+kfp==2.7.0
+google-cloud-storage==3.8.0
+google-cloud-aiplatform==1.44.0
+pandas==2.3.3
+scikit-learn==1.8.0
+joblib==1.5.3
