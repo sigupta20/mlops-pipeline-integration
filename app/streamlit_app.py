@@ -6,7 +6,7 @@ from app.predictor import Predictor
 
 st.set_page_config(page_title="Manufacturing Breakdown Predictor")
 
-st.title("🛠 Manufacturing Breakdown Predictor")
+st.title("Manufacturing Breakdown Predictor")
 st.write("GOOGLE_APPLICATION_CREDENTIALS =", os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
 
 BUCKET_NAME = os.getenv("MODEL_BUCKET")
@@ -29,6 +29,6 @@ if submitted:
     prediction = predictor.predict(features)
 
     if prediction == 1:
-        st.error("⚠️ Breakdown predicted")
+        st.error("Breakdown predicted")
     else:
-        st.success("✅ No breakdown predicted")
+        st.success("No breakdown predicted")
