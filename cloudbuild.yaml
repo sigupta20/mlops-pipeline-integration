@@ -1,19 +1,34 @@
-steps:
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      [
-        'build',
-        '-t',
-        'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-images/mlops-streamlit:v1',
-        '.'
-      ]
+options:
+  logging: CLOUD_LOGGING_ONLY
 
-  - name: 'gcr.io/cloud-builders/docker'
+steps:
+  # 1. Compile pipeline
+  - name: 'europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    id: Compile pipeline
+    entrypoint: python
     args:
-      [
-        'push',
-        'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-images/mlops-streamlit:v1'
-      ]
+      - kubeFlow/compile_pipeline.py
+  # 2. Submit pipeline
+  - name: 'europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    id: Submit pipeline
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        echo "Branch name: $BRANCH_NAME"
+        if [ "$BRANCH_NAME" = "prod" ]; then
+          python kubeFlow/submit_prod.py
+        else
+          python kubeFlow/submit_dev.py
+        fi
+  # 3. Build docker image with new model
+  - name: 'gcr.io/cloud-builders/docker'
+    id: Build docker image
+    args: ['build', '-t', 'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-images/mlops-streamlit:v1', '.']
+  # 4. Push docker image to artifact registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: Push docker image
+    args: ['push', 'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-images/mlops-streamlit:v1']
 
 images:
   - 'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-images/mlops-streamlit:v1'
