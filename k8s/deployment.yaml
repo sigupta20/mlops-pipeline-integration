@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mlops-streamlit
-  namespace: mlops-serving
 spec:
   replicas: 2
   selector:
@@ -13,10 +12,10 @@ spec:
       labels:
         app: mlops-streamlit
     spec:
-      serviceAccountName: mlops-serving-ksa
+      serviceAccountName: mlops-ksa
       containers:
         - name: streamlit
-          image: europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-images/mlops-streamlit:v1
+          image: europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-images/mlops-streamlit
           ports:
             - containerPort: 8080
           env:
