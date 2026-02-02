@@ -1,4 +1,3 @@
-import os
 from google.cloud import storage
 
 def load_model_from_gcs(bucket_name, blob_path):

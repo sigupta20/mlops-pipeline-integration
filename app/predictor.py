@@ -7,4 +7,5 @@ class Predictor:
 
     def predict(self, features: dict) -> int:
         df = pd.DataFrame([features])
-        return int(self.model.predict(df)[0])
+        prediction = self.model.predict(df)[0]
+        return int(prediction)
