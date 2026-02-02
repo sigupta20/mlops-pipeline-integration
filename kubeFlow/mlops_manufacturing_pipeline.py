@@ -45,23 +45,20 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 
     # 1. Load raw data
     raw_data_path = os.path.join(raw_data.path, "raw_data.csv")
-
-    # Raw file has no header (column positions are fixed)
     df = pd.read_csv(raw_data_path)
 
+    # 2. Row-wise feature engineering, _ means implies this value is not used
     prepared_rows = []
-
-    # 2. Row-wise feature engineering
     for _, row in df.iterrows():
-        first_stage  = row.iloc[3]
-        second_stage = row.iloc[7]
-        third_stage  = row.iloc[11]
-        fourth_stage = row.iloc[15]
+        first_stage  = row["First_stage"]
+        second_stage = row["Second_stage"]
+        third_stage  = row["Third_stage"]
+        fourth_stage = row["Fourth_stage"]
 
         prepared_rows.append({
             # Identifiers / metadata
-            "job_id": row.iloc[0],
-            "priority": row.iloc[1],
+            "job_id": row["ID"],
+            "priority": row["Priority"],
 
             # First stage (SMD)
             "smd_0": int(first_stage == "SMD_0"),
@@ -128,11 +125,11 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
     clf = KNeighborsClassifier(n_neighbors=5,metric="minkowski")
     clf.fit(X, y)
 
-    # Save model locally (Kubeflow artifact)
-    os.makedirs(model.path, exist_ok=True)
-    local_model_path = os.path.join(model.path, "model.joblib")
-    joblib.dump(clf, local_model_path)
-    print(f"Model saved locally at {local_model_path}")
+    # # Save model locally (Kubeflow artifact)
+    # os.makedirs(model.path, exist_ok=True)
+    # local_model_path = os.path.join(model.path, "model.joblib")
+    # joblib.dump(clf, local_model_path)
+    # print(f"Model saved locally at {local_model_path}")
 
     # Upload model to GCS (Python SDK)
     client = storage.Client()
