@@ -21,12 +21,8 @@ steps:
     args:
       - -c
       - |
-        echo "Branch name: $BRANCH_NAME"
-        if [ "$BRANCH_NAME" = "prod" ]; then
-          python kubeFlow/submit_prod.py
-        else
-          python kubeFlow/submit_dev.py
-        fi
+        if [ "$BRANCH_NAME" = "prod" ]; then ENV=prod; else ENV=dev; fi
+        python kubeFlow/submit.py
 
   # 3. Build Streamlit image
   - name: 'gcr.io/cloud-builders/docker'

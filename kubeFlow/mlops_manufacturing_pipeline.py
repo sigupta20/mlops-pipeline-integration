@@ -45,23 +45,20 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 
     # 1. Load raw data
     raw_data_path = os.path.join(raw_data.path, "raw_data.csv")
-
-    # Raw file has no header (column positions are fixed)
     df = pd.read_csv(raw_data_path)
 
+    # 2. Row-wise feature engineering, _ means implies this value is not used
     prepared_rows = []
-
-    # 2. Row-wise feature engineering
     for _, row in df.iterrows():
-        first_stage  = row.iloc[3]
-        second_stage = row.iloc[7]
-        third_stage  = row.iloc[11]
-        fourth_stage = row.iloc[15]
+        first_stage  = row["First_stage"]
+        second_stage = row["Second_stage"]
+        third_stage  = row["Third_stage"]
+        fourth_stage = row["Fourth_stage"]
 
         prepared_rows.append({
             # Identifiers / metadata
-            "job_id": row.iloc[0],
-            "priority": row.iloc[1],
+            "job_id": row["ID"],
+            "priority": row["Priority"],
 
             # First stage (SMD)
             "smd_0": int(first_stage == "SMD_0"),
@@ -112,7 +109,7 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 @component(
     base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
 )
-def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_name: str):
+def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_name: str, env: str):
     import pandas as pd
     import joblib
     import os
@@ -137,7 +134,7 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
     # Upload model to GCS (Python SDK)
     client = storage.Client()
     bucket = client.bucket(bucket_name)
-    gcs_blob_path = "dev/model/model.joblib"
+    gcs_blob_path = f"{env}/model/model.joblib"
     blob = bucket.blob(gcs_blob_path)
     blob.upload_from_filename(local_model_path)
     print(f"Model uploaded to gs://{bucket_name}/{gcs_blob_path}")
@@ -232,6 +229,7 @@ def mlops_manufacturing_pipeline(
     train_task = train_model_op(
         prepared_data=prepare_task.outputs["prepared_data"],
         bucket_name=bucket_name,
+        env=env
     )
     train_task.set_caching_options(False)
 
