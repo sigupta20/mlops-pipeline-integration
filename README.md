@@ -86,8 +86,8 @@ kubectl describe serviceaccount mlops-ksa
 
 
 ## Delete the GKE cluster
-gcloud container clusters delete ml-cluster \
-  --zone europe-west1-b \
+gcloud container clusters delete mlops-cluster \
+  --zone europe-west3-b \
   --project mlops-pipeline-01
 
 

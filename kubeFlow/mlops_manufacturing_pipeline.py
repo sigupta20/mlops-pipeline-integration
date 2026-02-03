@@ -109,7 +109,7 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 @component(
     base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
 )
-def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_name: str):
+def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_name: str, env: str):
     import pandas as pd
     import joblib
     import os
@@ -125,16 +125,16 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
     clf = KNeighborsClassifier(n_neighbors=5,metric="minkowski")
     clf.fit(X, y)
 
-    # # Save model locally (Kubeflow artifact)
-    # os.makedirs(model.path, exist_ok=True)
-    # local_model_path = os.path.join(model.path, "model.joblib")
-    # joblib.dump(clf, local_model_path)
-    # print(f"Model saved locally at {local_model_path}")
+    # Save model locally (Kubeflow artifact)
+    os.makedirs(model.path, exist_ok=True)
+    local_model_path = os.path.join(model.path, "model.joblib")
+    joblib.dump(clf, local_model_path)
+    print(f"Model saved locally at {local_model_path}")
 
     # Upload model to GCS (Python SDK)
     client = storage.Client()
     bucket = client.bucket(bucket_name)
-    gcs_blob_path = "dev/model/model.joblib"
+    gcs_blob_path = f"{env}/model/model.joblib"
     blob = bucket.blob(gcs_blob_path)
     blob.upload_from_filename(local_model_path)
     print(f"Model uploaded to gs://{bucket_name}/{gcs_blob_path}")
@@ -229,6 +229,7 @@ def mlops_manufacturing_pipeline(
     train_task = train_model_op(
         prepared_data=prepare_task.outputs["prepared_data"],
         bucket_name=bucket_name,
+        env=env
     )
     train_task.set_caching_options(False)
 
