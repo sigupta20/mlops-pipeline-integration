@@ -5,7 +5,7 @@ substitutions:
   _PROJECT_ID: mlops-pipeline-01
   _ARTIFACT_REPO: mlops-images
   _ARTIFACT_HOST: europe-west3-docker.pkg.dev
-  _ENV: dev
+  # _ENV: dev
 
 steps:
   # 1. Compile pipeline
@@ -15,6 +15,18 @@ steps:
     args:
       - kubeFlow/compile_pipeline.py
 
+  # # 2. Submit pipeline (branch-based)
+  # - name: '${_ARTIFACT_HOST}/${_PROJECT_ID}/mlops-build/mlops-build:1.0.1'
+  #   id: Submit pipeline
+  #   entrypoint: bash
+  #   args:
+  #     - -c
+  #     - |
+  #       if [ "$BRANCH_NAME" = "production" ]; then ${_ENV}=prod; else ${_ENV}=dev; fi
+  #       echo "Branch name: $BRANCH_NAME"
+  #       echo "Environment: ${_ENV}"
+  #       python kubeFlow/submit.py
+
   # 2. Submit pipeline (branch-based)
   - name: '${_ARTIFACT_HOST}/${_PROJECT_ID}/mlops-build/mlops-build:1.0.1'
     id: Submit pipeline
@@ -22,10 +34,10 @@ steps:
     args:
       - -c
       - |
-        if [ "$BRANCH_NAME" = "production" ]; then ${_ENV}=prod; else ${_ENV}=dev; fi
+        if [ "$BRANCH_NAME" = "production" ]; then ENV=prod; else ENV=dev; fi
         echo "Branch name: $BRANCH_NAME"
-        echo "Environment: ${_ENV}"
-        python kubeFlow/submit.py
+        echo "Environment: $ENV"
+        ENV=$ENV python kubeFlow/submit.py
 
   # 3. Build Streamlit image
   - name: 'gcr.io/cloud-builders/docker'
