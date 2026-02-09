@@ -24,7 +24,7 @@ steps:
       - |
         echo "Branch name: $BRANCH_NAME"
         if [ "$BRANCH_NAME" = "production" ]; then ${_ENV}=prod; else ${_ENV}=dev; fi
-        ENV=$ENV python kubeFlow/submit.py
+        python kubeFlow/submit.py
 
   # 3. Build Streamlit image
   - name: 'gcr.io/cloud-builders/docker'
