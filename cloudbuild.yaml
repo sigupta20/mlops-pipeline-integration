@@ -21,8 +21,9 @@ steps:
     args:
       - -c
       - |
-        if [ "$BRANCH_NAME" = "prod" ]; then ENV=prod; else ENV=dev; fi
-        python kubeFlow/submit.py
+        echo "Branch name: $BRANCH_NAME"
+        if [ "$BRANCH_NAME" = "production" ]; then ENV=prod; else ENV=dev; fi
+        ENV=$ENV python kubeFlow/submit.py
 
   # 3. Build Streamlit image
   - name: 'gcr.io/cloud-builders/docker'
@@ -43,13 +44,23 @@ steps:
   # 5. Deploy to GKE
   - name: 'gcr.io/cloud-builders/gke-deploy'
     id: Deploy to GKE
+    # Only deploy the image when branch name = production
+    entrypoint: bash
     args:
-      - run
-      - --filename=k8s/
-      - --image=${_ARTIFACT_HOST}/${_PROJECT_ID}/${_ARTIFACT_REPO}/mlops-streamlit:$BUILD_ID
-      - --cluster=mlops-cluster
-      - --location=europe-west3-b
-      - --namespace=default
+      - -c
+      - |
+        echo "Branch name: $BRANCH_NAME"
+        if [ "$BRANCH_NAME" = "production" ]; then
+          gke-deploy run \
+            --filename=k8s/ \
+            --image=${_ARTIFACT_HOST}/${_PROJECT_ID}/${_ARTIFACT_REPO}/mlops-streamlit:$BUILD_ID \
+            --cluster=mlops-cluster \
+            --location=europe-west3-b \
+            --namespace=default
+        else
+          echo "Image not deployed to GKE. Branch name is: $BRANCH_NAME"
+        fi
+
 
 images:
   - ${_ARTIFACT_HOST}/${_PROJECT_ID}/${_ARTIFACT_REPO}/mlops-streamlit:$BUILD_ID

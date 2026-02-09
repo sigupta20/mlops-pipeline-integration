@@ -163,13 +163,13 @@ gcloud ai endpoints describe ENDPOINT_ID \
 
 create endpoints for the model:
 gcloud ai endpoints create \
-  --display-name=knn-endpoint-prod \
+  --display-name=knn-endpoint-production \
   --region=europe-west1
 
 deploy model to the endpoint:
 gcloud ai endpoints deploy-model ENDPOINT_ID \
   --model=MODEL_ID \
-  --display-name=knn-deployment-prod \
+  --display-name=knn-deployment-production \
   --machine-type=n1-standard-2 \
   --min-replica-count=1 \
   --max-replica-count=3 \
