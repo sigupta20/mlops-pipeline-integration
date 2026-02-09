@@ -22,8 +22,8 @@ steps:
     args:
       - -c
       - |
-        echo "Branch name: $BRANCH_NAME"
         if [ "$BRANCH_NAME" = "production" ]; then ${_ENV}=prod; else ${_ENV}=dev; fi
+        echo "Branch name: $BRANCH_NAME"
         echo "Environment: ${_ENV}"
         python kubeFlow/submit.py
 
@@ -51,7 +51,6 @@ steps:
     args:
       - -c
       - |
-        echo "Branch name: $BRANCH_NAME"
         if [ "$BRANCH_NAME" = "production" ]; then
           gke-deploy run \
             --filename=k8s/ \
@@ -60,7 +59,7 @@ steps:
             --location=europe-west3-b \
             --namespace=default
         else
-          echo "Image not deployed to GKE. Branch name is: $BRANCH_NAME"
+          echo "Deployment skipped. Not running on production branch. Current branch: $BRANCH_NAME"
         fi
 
 
