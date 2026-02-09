@@ -23,7 +23,7 @@ steps:
       - -c
       - |
         echo "Branch name: $BRANCH_NAME"
-        if [ "$BRANCH_NAME" = "production" ]; then $_ENV=prod; else $_ENV=dev; fi
+        if [ "$BRANCH_NAME" = "production" ]; then ${_ENV}=prod; else ${_ENV}=dev; fi
         ENV=$ENV python kubeFlow/submit.py
 
   # 3. Build Streamlit image
