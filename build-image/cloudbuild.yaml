@@ -1,0 +1,19 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-t',
+        'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-build/mlops-build:1.0.1',
+        '.'
+      ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'push',
+        'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-build/mlops-build:1.0.1'
+      ]
+
+images:
+  - 'europe-west3-docker.pkg.dev/$PROJECT_ID/mlops-build/mlops-build:1.0.1'

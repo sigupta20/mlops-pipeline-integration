@@ -1,19 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: imgclass
+  name: mlops-streamlit
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: imageclassifier
+      app: mlops-streamlit
   template:
     metadata:
       labels:
-        app: imageclassifier
+        app: mlops-streamlit
     spec:
+      serviceAccountName: mlops-ksa
       containers:
-      - name: cv-app
-        image: gcr.io/srivatsan-project/imgwebapp:v1
-        ports:
-        - containerPort: 8501
+        - name: streamlit
+          image: europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-images/mlops-streamlit
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MODEL_BUCKET
+              value: "mlops-pipeline-01"
+            - name: MODEL_GCS_PATH
+              value: "dev/model/model.joblib"
