@@ -7,7 +7,7 @@ import time
 
 # Extract data component
 @component(
-    base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
 )
 def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
     import pandas as pd
@@ -37,7 +37,7 @@ def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
 
 # Prepare data component
 @component(   
-    base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
 )
 def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
     import pandas as pd
@@ -107,7 +107,7 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 
 # Train model component
 @component(
-    base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
 )
 def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_name: str, env: str):
     import pandas as pd
@@ -141,7 +141,7 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
 
 # Evaluate model component
 @component(
-    base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
 )
 def evaluate_model_op(
     model: Input[Model],
@@ -174,7 +174,7 @@ def evaluate_model_op(
 
 # Register model to Model Registry
 @component(
-    base_image='europe-west3-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+    base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
 )
 def register_model_op(
     project_id: str,
