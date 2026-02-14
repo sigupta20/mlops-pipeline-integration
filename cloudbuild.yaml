@@ -4,18 +4,18 @@ options:
 substitutions:
   _PROJECT_ID: mlops-pipeline-01
   _ARTIFACT_REPO: mlops-images
-  _ARTIFACT_HOST: europe-west3-docker.pkg.dev
+  _ARTIFACT_HOST: europe-west1-docker.pkg.dev
 
 steps:
   # 1. Compile pipeline
-  - name: '${_ARTIFACT_HOST}/${_PROJECT_ID}/mlops-build/mlops-build:1.0.1'
+  - name: '${_ARTIFACT_HOST}/${_PROJECT_ID}/mlops-build/mlops-build:1.0.0'
     id: Compile pipeline
     entrypoint: python
     args:
       - kubeFlow/compile_pipeline.py
 
   # 2. Submit pipeline
-  - name: '${_ARTIFACT_HOST}/${_PROJECT_ID}/mlops-build/mlops-build:1.0.1'
+  - name: '${_ARTIFACT_HOST}/${_PROJECT_ID}/mlops-build/mlops-build:1.0.0'
     id: Submit pipeline
     entrypoint: bash
     args:
@@ -57,7 +57,7 @@ steps:
             --filename=k8s/ \
             --image=${_ARTIFACT_HOST}/${_PROJECT_ID}/${_ARTIFACT_REPO}/mlops-streamlit:$BUILD_ID \
             --cluster=mlops-cluster \
-            --location=europe-west3-b \
+            --location=europe-west1-b \
             --namespace=default
         else
           echo "Deployment skipped. Not running on production branch. Current branch: $BRANCH_NAME"
