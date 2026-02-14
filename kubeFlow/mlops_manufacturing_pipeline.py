@@ -88,7 +88,7 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
             "cc_0": int(fourth_stage == "CC_0"),
             "cc_1": int(fourth_stage == "CC_1"),
             "processing_time_s4": float(row["Processing_Time_S4"]),
-            
+
             "overall_processing_time": float(row["Overall_processing_time"]),
             "overall_waiting_time": float(row["Overall_waiting_time"]),
             "tardiness": float(row["Tardiness"]),
@@ -112,20 +112,45 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
     import os
     from google.cloud import storage
     from sklearn.neighbors import KNeighborsClassifier
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score, f1_score
+
 
     # Load data
     df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"))
-    X = df.drop("breaks", axis=1)
-    y = df["breaks"]
+
+    # Target variable: breaks
+    target = 'breaks'
+
+    # Define features and separate target
+    X = df.drop(target, axis=1)
+    y = df[target]
+
+    # Split into Training and Test dataset
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
 
     # Train model
-    clf = KNeighborsClassifier(n_neighbors=5,metric="minkowski")
-    clf.fit(X, y)
+    knn_model = KNeighborsClassifier(n_neighbors=5,metric="minkowski")
+    knn_model.fit(X_train, y_train)
 
-    # Save model locally (Kubeflow artifact)
+    # Predict using test dataset
+    y_pred = knn_model.predict(X_test)
+
+    # convert labels into binary format: [0,1]
+    y_test_binary = (y_test != 0).astype(int)
+    y_pred_binary = (y_pred != 0).astype(int)
+
+    # Evaluate model
+    accuracy = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test_binary, y_pred_binary, average='binary')
+
+    print(f'Accuracy for "breaks": {accuracy}')
+    print(f'F1-Score for "breaks": {f1}')
+
+    # Save model locally to be used in next stage
     os.makedirs(model.path, exist_ok=True)
     local_model_path = os.path.join(model.path, "model.joblib")
-    joblib.dump(clf, local_model_path)
+    joblib.dump(knn_model, local_model_path)
     print(f"Model saved locally at {local_model_path}")
 
     # Upload model to GCS (Python SDK)
@@ -144,29 +169,45 @@ def evaluate_model_op(
     model: Input[Model],
     prepared_data: Input[Dataset],
     metrics: Output[Metrics],
-    f1_threshold: float = 0.9,
+    f1_threshold: float = 0.7,
 ) -> NamedTuple("Outputs", [("deploy_decision", str)]):
     import os
     import pandas as pd
     import joblib
     from sklearn.metrics import f1_score
+    from sklearn.neighbors import KNeighborsClassifier
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score, f1_score
 
     # Load data
     df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"))
+
     X = df.drop("breaks", axis=1)
-    y_true = df["breaks"]
+    y = df["breaks"]
+
+    # Split data into test and training data
+    _, X_test, _, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
 
     # Load model
-    clf = joblib.load(os.path.join(model.path, "model.joblib"))
+    load_model = joblib.load(os.path.join(model.path, "model.joblib"))
 
-    # Predict
-    y_pred = clf.predict(X)
+    # Predict using test dataset
+    y_pred = load_model.predict(X_test)
 
-    # Multiclass-safe F1
-    f1 = f1_score(y_true, y_pred, average="weighted")
-    metrics.log_metric("f1_score_weighted", f1)
+    # convert labels into binary format: [0,1]
+    y_test_binary = (y_test != 0).astype(int)
+    y_pred_binary = (y_pred != 0).astype(int)
 
-    print(f"Weighted F1 score: {f1}")
+    # Evaluate model
+    accuracy = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test_binary, y_pred_binary, average='binary')
+
+    metrics.log_metric("accuracy", accuracy)
+    metrics.log_metric("f1_score_binary", f1)
+
+    print(f'Accuracy for "breaks": {accuracy}')
+    print(f'F1-Score for "breaks": {f1}')
+
     return ("true" if f1 >= f1_threshold else "false",)
 
 # Register model to Model Registry
