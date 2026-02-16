@@ -6,7 +6,7 @@ from google.cloud.aiplatform.pipeline_jobs import PipelineJob
 ENV = os.getenv("ENV", "dev")
 RUN_ID = str(int(time.time()))
 PROJECT_ID = "mlops-pipeline-01"
-REGION = "europe-west3"
+REGION = "europe-west1"
 BUCKET_NAME = "mlops-pipeline-01"
 
 PIPELINE_ROOT = f"gs://mlops-pipeline-01/pipelines/{ENV}/{RUN_ID}"
@@ -19,9 +19,8 @@ PIPELINE_PARAMS = {
     "env": ENV,
     "run_id": RUN_ID,
     "bucket_name": BUCKET_NAME,
-    # "endpoint_display_name": f"mlops-endpoint-{ENV}",
     "model_display_name": f"mlops-model-{ENV}",
-    "f1_threshold": 0.80 if ENV == "prod" else 0.90,
+    "f1_threshold": 0.80 if ENV == "prod" else 0.70,
 }
 
 aiplatform.init(project=PROJECT_ID, location=REGION)

@@ -8,7 +8,7 @@ https://docs.cloud.google.com/vertex-ai/docs/pipelines/introduction
 
 
 ## STEP 5 – Build & Push Image to Artifact Registry
-gcloud artifacts repositories create ml-images \
+gcloud artifacts repositories create mlops-images \
     --repository-format=docker \
     --location=europe-west1
 
@@ -53,7 +53,7 @@ gcloud auth login
 
 
 gcloud container clusters create mlops-cluster \
-  --zone europe-west3-b \
+  --zone europe-west1-b \
   --project mlops-pipeline-01 \
   --num-nodes 2 \
   --machine-type e2-standard-2 \
@@ -61,7 +61,7 @@ gcloud container clusters create mlops-cluster \
 
 
 gcloud container clusters get-credentials mlops-cluster \
-  --zone europe-west3-b \
+  --zone europe-west1-b \
   --project mlops-pipeline-01
 
 
@@ -87,7 +87,7 @@ kubectl describe serviceaccount mlops-ksa
 
 ## Delete the GKE cluster
 gcloud container clusters delete mlops-cluster \
-  --zone europe-west3-b \
+  --zone europe-west1-b \
   --project mlops-pipeline-01
 
 
