@@ -184,3 +184,5 @@ gcloud run deploy knn-streamlit \
   --platform=managed \
   --allow-unauthenticated \
   --set-env-vars MODEL_BUCKET=your-bucket-name,MODEL_GCS_PATH=dev/model/model.joblib
+
+# Small comment for demo purposes
