@@ -59,6 +59,7 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
             # Identifiers / metadata
             "job_id": row["ID"],
             "priority": row["Priority"],
+            "family_type": row["Family_type"],
 
             # First stage (SMD)
             "smd_0": int(first_stage == "SMD_0"),
@@ -106,7 +107,7 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 @component(
     base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
 )
-def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_name: str, env: str):
+def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_name: str, env: str, feature_set: str):
     import pandas as pd
     import joblib
     import os
@@ -114,10 +115,11 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
+    from sklearn.ensemble import BaggingClassifier
 
-
+    features = [c.strip() for c in feature_set.split(",")]
     # Load data
-    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"))
+    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"), usecols=features)
 
     # Target variable: breaks
     target = 'breaks'
@@ -132,9 +134,12 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
     # Train model
     knn_model = KNeighborsClassifier(n_neighbors=5,metric="minkowski")
     knn_model.fit(X_train, y_train)
+    bagging_model = BaggingClassifier(estimator=knn_model, n_estimators=10, random_state=42)
+    bagging_model.fit(X_train, y_train)
 
     # Predict using test dataset
-    y_pred = knn_model.predict(X_test)
+    # y_pred = knn_model.predict(X_test)
+    y_pred = bagging_model.predict(X_test)
 
     # convert labels into binary format: [0,1]
     y_test_binary = (y_test != 0).astype(int)
@@ -169,6 +174,7 @@ def evaluate_model_op(
     model: Input[Model],
     prepared_data: Input[Dataset],
     metrics: Output[Metrics],
+    feature_set: str,
     f1_threshold: float = 0.7,
 ) -> NamedTuple("Outputs", [("deploy_decision", str)]):
     import os
@@ -179,8 +185,10 @@ def evaluate_model_op(
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
 
+
+    features = [c.strip() for c in feature_set.split(",")]
     # Load data
-    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"))
+    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"), usecols=features)
 
     X = df.drop("breaks", axis=1)
     y = df["breaks"]
@@ -204,6 +212,9 @@ def evaluate_model_op(
 
     metrics.log_metric("accuracy", accuracy)
     metrics.log_metric("f1_score_binary", f1)
+    # log feature info too
+    metrics.log_metric("num_features", len([c.strip() for c in feature_set.split(",")]))
+    metrics.metadata["feature_set"] = feature_set
 
     print(f'Accuracy for "breaks": {accuracy}')
     print(f'F1-Score for "breaks": {f1}')
@@ -219,6 +230,8 @@ def register_model_op(
     location: str,
     model: Input[Model],
     display_name: str,
+    feature_set: str, 
+    run_id: str,
     model_resource: Output[Artifact],
 ):
     from google.cloud import aiplatform
@@ -229,6 +242,7 @@ def register_model_op(
         display_name=display_name,
         artifact_uri=model.path,
         serving_container_image_uri="europe-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
+        description=f"feature_set={feature_set}",
         sync=True,
     )
     with open(model_resource.path, "w") as f:
@@ -246,9 +260,9 @@ def mlops_manufacturing_pipeline(
     bucket_name: str,
     env: str,
     run_id: str,
-    # endpoint_display_name: str = "mlops-endpoint",
     model_display_name: str,
     f1_threshold: float,
+    feature_set: str,
 ):
 
     # Extract data
@@ -267,7 +281,8 @@ def mlops_manufacturing_pipeline(
     train_task = train_model_op(
         prepared_data=prepare_task.outputs["prepared_data"],
         bucket_name=bucket_name,
-        env=env
+        env=env,
+        feature_set=feature_set
     )
     train_task.set_caching_options(False)
 
@@ -276,6 +291,7 @@ def mlops_manufacturing_pipeline(
         model=train_task.outputs["model"],
         prepared_data=prepare_task.outputs["prepared_data"],
         f1_threshold=f1_threshold,
+        feature_set=feature_set,
     )
     evaluate_task.set_caching_options(False)
 
@@ -286,4 +302,6 @@ def mlops_manufacturing_pipeline(
             location=location,
             model=train_task.outputs["model"],
             display_name=model_display_name,
+            feature_set=feature_set,
+            run_id=run_id,
         )
