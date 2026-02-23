@@ -1,5 +1,6 @@
 # mlops_pipeline
-Configure project: gcloud config set project mlops-pipeline-01
+gcloud config set project mlops-pipeline-01
+gcloud auth application-default login
 
 ## Documentation links:
 https://docs.cloud.google.com/kubernetes-engine/docs/tutorials/agentic-adk-vertex#standard
@@ -50,6 +51,7 @@ gcloud projects add-iam-policy-binding mlops-pipeline-01 \
 # Kubernetes Cluster (GKE)
 
 gcloud auth login
+gcloud auth application-default login
 
 
 gcloud container clusters create mlops-cluster \

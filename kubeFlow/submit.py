@@ -16,8 +16,8 @@ TEMPLATE_PATH = "mlops_manufacturing_pipeline.yaml"
 # List of features
 FEATURES = [
     "job_id",
-    # "priority",
-    # "family_type",
+    "priority",
+    "family_type",
     # "smd_0",
     # "smd_1",
     # "smd_2",
@@ -40,7 +40,7 @@ FEATURES = [
     # "cc_1",
     # "processing_time_s4",
     "overall_processing_time",
-    # "overall_waiting_time",
+    "overall_waiting_time",
     "tardiness",
     "breaks",
 ]

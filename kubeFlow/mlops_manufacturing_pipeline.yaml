@@ -388,11 +388,9 @@ deploymentSpec:
           \    y = df[target]\n\n    # Split into Training and Test dataset\n    X_train,\
           \ X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=52)\n\
           \n    # Train model\n    knn_model = KNeighborsClassifier(n_neighbors=5,metric=\"\
-          minkowski\")\n    knn_model.fit(X_train, y_train)\n    bagging_model = BaggingClassifier(estimator=knn_model,\
-          \ n_estimators=10, random_state=42)\n    bagging_model.fit(X_train, y_train)\n\
-          \n    # Predict using test dataset\n    # y_pred = knn_model.predict(X_test)\n\
-          \    y_pred = bagging_model.predict(X_test)\n\n    # convert labels into\
-          \ binary format: [0,1]\n    y_test_binary = (y_test != 0).astype(int)\n\
+          minkowski\")\n    knn_model.fit(X_train, y_train)\n\n    # Predict using\
+          \ test dataset\n    y_pred = knn_model.predict(X_test)\n\n    # convert\
+          \ labels into binary format: [0,1]\n    y_test_binary = (y_test != 0).astype(int)\n\
           \    y_pred_binary = (y_pred != 0).astype(int)\n\n    # Evaluate model\n\
           \    accuracy = accuracy_score(y_test, y_pred)\n    f1 = f1_score(y_test_binary,\
           \ y_pred_binary, average='binary')\n\n    print(f'Accuracy for \"breaks\"\

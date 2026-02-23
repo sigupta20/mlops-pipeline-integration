@@ -134,12 +134,9 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
     # Train model
     knn_model = KNeighborsClassifier(n_neighbors=5,metric="minkowski")
     knn_model.fit(X_train, y_train)
-    bagging_model = BaggingClassifier(estimator=knn_model, n_estimators=10, random_state=42)
-    bagging_model.fit(X_train, y_train)
 
     # Predict using test dataset
-    # y_pred = knn_model.predict(X_test)
-    y_pred = bagging_model.predict(X_test)
+    y_pred = knn_model.predict(X_test)
 
     # convert labels into binary format: [0,1]
     y_test_binary = (y_test != 0).astype(int)
