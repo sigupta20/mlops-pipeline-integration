@@ -15,7 +15,7 @@ TEMPLATE_PATH = "mlops_manufacturing_pipeline.yaml"
 
 # List of features
 FEATURES = [
-    # "job_id",
+    "job_id",
     # "priority",
     # "family_type",
     # "smd_0",
