@@ -9,9 +9,41 @@ PROJECT_ID = "mlops-pipeline-01"
 REGION = "europe-west1"
 BUCKET_NAME = "mlops-pipeline-01"
 
-PIPELINE_ROOT = f"gs://mlops-pipeline-01/pipelines/{ENV}/{RUN_ID}"
+PIPELINE_ROOT = f"gs://{BUCKET_NAME}/pipelines/{ENV}/{RUN_ID}"
 DISPLAY_NAME = f"mlops-training-{ENV}-{RUN_ID}"
 TEMPLATE_PATH = "mlops_manufacturing_pipeline.yaml"
+
+# List of features
+FEATURES = [
+    "job_id",
+    "priority",
+    "family_type",
+    # "smd_0",
+    # "smd_1",
+    # "smd_2",
+    # "smd_3",
+    # "smd_4",
+    # "processing_time_s1",
+    # "aoi_0",
+    # "aoi_1",
+    # "aoi_2",
+    # "aoi_3",
+    # "aoi_4",
+    # "processing_time_s2",
+    # "ss_0",
+    # "ss_1",
+    # "ss_2",
+    # "ss_3",
+    # "ss_4",
+    # "processing_time_s3",
+    # "cc_0",
+    # "cc_1",
+    # "processing_time_s4",
+    "overall_processing_time",
+    "overall_waiting_time",
+    "tardiness",
+    "breaks",
+]
 
 PIPELINE_PARAMS = {
     "project_id": PROJECT_ID,
@@ -20,6 +52,7 @@ PIPELINE_PARAMS = {
     "run_id": RUN_ID,
     "bucket_name": BUCKET_NAME,
     "model_display_name": f"mlops-model-{ENV}",
+    "feature_set": ",".join(FEATURES),
     "f1_threshold": 0.75 if ENV == "prod" else 0.70,
 }
 
@@ -32,4 +65,5 @@ job = PipelineJob(
     parameter_values=PIPELINE_PARAMS,
 )
 
-job.run(sync=True)
+job.submit(experiment=f"mlops-manufacturing-{ENV}")
+job.wait()
