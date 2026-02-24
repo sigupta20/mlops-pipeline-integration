@@ -107,15 +107,13 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 @component(
     base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
 )
-def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_name: str, env: str, feature_set: str):
+def train_model_op(prepared_data: Input[Dataset], model: Output[Model], feature_set: str):
     import pandas as pd
     import joblib
     import os
-    from google.cloud import storage
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
-    from sklearn.ensemble import BaggingClassifier
 
     features = [c.strip() for c in feature_set.split(",")]
     # Load data
@@ -155,13 +153,6 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
     joblib.dump(knn_model, local_model_path)
     print(f"Model saved locally at {local_model_path}")
 
-    # Upload model to GCS (Python SDK)
-    client = storage.Client()
-    bucket = client.bucket(bucket_name)
-    gcs_blob_path = f"{env}/model/model.joblib"
-    blob = bucket.blob(gcs_blob_path)
-    blob.upload_from_filename(local_model_path)
-    print(f"Model uploaded to gs://{bucket_name}/{gcs_blob_path}")
 
 # Evaluate model component
 @component(
@@ -172,7 +163,7 @@ def evaluate_model_op(
     prepared_data: Input[Dataset],
     metrics: Output[Metrics],
     feature_set: str,
-    f1_threshold: float = 0.7,
+    f1_threshold: float,
 ) -> NamedTuple("Outputs", [("deploy_decision", str)]):
     import os
     import pandas as pd
@@ -326,8 +317,6 @@ def mlops_manufacturing_pipeline(
     # Train model
     train_task = train_model_op(
         prepared_data=prepare_task.outputs["prepared_data"],
-        bucket_name=bucket_name,
-        env=env,
         feature_set=feature_set
     )
     train_task.set_caching_options(False)

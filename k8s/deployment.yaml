@@ -22,4 +22,4 @@ spec:
             - name: MODEL_BUCKET
               value: "mlops-pipeline-01"
             - name: MODEL_GCS_PATH
-              value: "dev/model/model.joblib"
+              value: "artifacts/prod/latest/model.joblib"

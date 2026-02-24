@@ -53,7 +53,7 @@ PIPELINE_PARAMS = {
     "bucket_name": BUCKET_NAME,
     "model_display_name": f"mlops-model-{ENV}",
     "feature_set": ",".join(FEATURES),
-    "f1_threshold": 0.75 if ENV == "prod" else 0.70,
+    "f1_threshold": 0.80,
 }
 
 aiplatform.init(project=PROJECT_ID, location=REGION)

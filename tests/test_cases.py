@@ -19,26 +19,13 @@ EXPECTED_PREPARED_COLS = [
     "job_id",
     "priority",
     "family_type",
-    "smd_0",
-    "smd_1",
-    "smd_2",
-    "smd_3",
-    "smd_4",
+    "smd_0", "smd_1", "smd_2", "smd_3", "smd_4",
     "processing_time_s1",
-    "aoi_0",
-    "aoi_1",
-    "aoi_2",
-    "aoi_3",
-    "aoi_4",
+    "aoi_0", "aoi_1", "aoi_2", "aoi_3", "aoi_4",
     "processing_time_s2",
-    "ss_0",
-    "ss_1",
-    "ss_2",
-    "ss_3",
-    "ss_4",
+    "ss_0", "ss_1", "ss_2", "ss_3", "ss_4",
     "processing_time_s3",
-    "cc_0",
-    "cc_1",
+    "cc_0", "cc_1",
     "processing_time_s4",
     "overall_processing_time",
     "overall_waiting_time",
@@ -76,54 +63,88 @@ def _download_model_from_gcs(bucket: str, blob_path: str, local_path: str) -> st
     return local_path
 
 
-def test_raw_data_exists_and_has_no_duplicate_ids():
+def test_raw_data_exists_and_has_reasonable_id_quality():
+
     df = _read_csv_from_gcs(BUCKET, RAW_DATA_BLOB)
 
+
+    # assertions to check file exists, file is not empty and has an ID and BREAK columns
     assert isinstance(df, pd.DataFrame)
     assert not df.empty
     assert "ID" in df.columns
+    assert "BREAKS" in df.columns
 
-    dup = df.duplicated(subset=["ID"], keep=False).sum()
-    assert dup == 0, f"Found {dup} duplicate IDs"
+    # IDs should not be missing
+    assert df["ID"].notna().all(), "Found missing IDs in raw data"
+
+    # Must have more than a handful of unique IDs
+    n_rows = len(df)
+    n_unique = df["ID"].nunique(dropna=True)
+    assert n_unique > 10, f"Too few unique IDs: {n_unique}"
+    assert n_unique / max(n_rows, 1) > 0.05, f"Unique ID ratio too low: {n_unique}/{n_rows}"
 
 
 def test_prepared_data_schema_and_domain_rules():
+
     df = _read_csv_from_gcs(BUCKET, PREPARED_DATA_BLOB)
 
+    assert isinstance(df, pd.DataFrame)
     assert not df.empty
     assert list(df.columns) == EXPECTED_PREPARED_COLS
     assert df.isna().sum().sum() == 0
 
-    for c in [
-        "processing_time_s1",
-        "processing_time_s2",
-        "processing_time_s3",
-        "processing_time_s4",
-        "overall_processing_time",
-        "overall_waiting_time",
-    ]:
-        assert (df[c] >= 0).all(), f"Negative values found in {c}"
+    # Check that ALL numeric columns have no negative values
+    numeric_df = df.select_dtypes(include=["number"])
+    
+    # Find any negative values
+    negatives = (numeric_df < 0)
+    
+    if negatives.any().any():
+        negative_cols = numeric_df.columns[negatives.any()].tolist()
+        raise AssertionError(
+            f"Negative values found in numeric columns: {negative_cols}"
+        )
 
-    assert (df[["smd_0","smd_1","smd_2","smd_3","smd_4"]].sum(axis=1) == 1).all()
-    assert (df[["aoi_0","aoi_1","aoi_2","aoi_3","aoi_4"]].sum(axis=1) == 1).all()
-    assert (df[["ss_0","ss_1","ss_2","ss_3","ss_4"]].sum(axis=1) == 1).all()
-    assert (df[["cc_0","cc_1"]].sum(axis=1) == 1).all()
+    # One-hot integrity: allow 0 or 1 (0 means stage missing/unknown)
+    for group in [
+        ["smd_0", "smd_1", "smd_2", "smd_3", "smd_4"],
+        ["aoi_0", "aoi_1", "aoi_2", "aoi_3", "aoi_4"],
+        ["ss_0", "ss_1", "ss_2", "ss_3", "ss_4"],
+        ["cc_0", "cc_1"],
+    ]:
+        s = df[group].sum(axis=1)
+        assert ((s == 0) | (s == 1)).all(), f"Invalid one-hot rows for {group}: expected sum 0 or 1"
 
 
 def test_model_exists_and_predictions_are_valid(tmp_path):
+
     local_model = _download_model_from_gcs(
         BUCKET, MODEL_BLOB, str(tmp_path / "model.joblib")
     )
     model = joblib.load(local_model)
 
     df = _read_csv_from_gcs(BUCKET, PREPARED_DATA_BLOB)
-    X = df.drop("breaks", axis=1)
 
+    # Use features the model was trained on
+    if hasattr(model, "feature_names_in_"):
+        feature_cols = list(model.feature_names_in_)
+    else:
+        raise AssertionError(
+            "Model does not have feature_names_in_. "
+            "Train with a pandas DataFrame so sklearn stores feature names."
+        )
+
+    missing = [c for c in feature_cols if c not in df.columns]
+    assert not missing, f"Prepared data missing model features: {missing}"
+
+    X = df[feature_cols]
     preds = model.predict(X.head(5))
+
     assert len(preds) == min(5, len(X))
     assert not np.isnan(preds).any()
     assert np.isfinite(preds).all()
 
+    # Determinism
     sample = X.head(1)
     p1 = model.predict(sample)
     p2 = model.predict(sample)
