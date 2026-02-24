@@ -2,20 +2,19 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 substitutions:
-  _PROJECT_ID: mlops-pipeline-01
-  _ARTIFACT_REPO: mlops-images
-  _ARTIFACT_HOST: europe-west1-docker.pkg.dev
+  _MLOPS_BUILD_IMAGE: 'europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1'
+  _STREAMLIT_IMAGE: 'europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-images/mlops-streamlit'
+  _DOCKER_IMAGE: 'gcr.io/cloud-builders/docker'
 
 steps:
   # 1. Compile pipeline
-  - name: '${_ARTIFACT_HOST}/${_PROJECT_ID}/mlops-build/mlops-build:1.0.0'
+  - name: '${_MLOPS_BUILD_IMAGE}'
     id: Compile pipeline
     entrypoint: python
-    args:
-      - kubeFlow/compile_pipeline.py
+    args: ['kubeFlow/compile_pipeline.py']
 
   # 2. Submit pipeline
-  - name: '${_ARTIFACT_HOST}/${_PROJECT_ID}/mlops-build/mlops-build:1.0.0'
+  - name: '${_MLOPS_BUILD_IMAGE}'
     id: Submit pipeline
     entrypoint: bash
     args:
@@ -27,27 +26,30 @@ steps:
         echo "Environment: '$$ENV'"
         ENV="$$ENV" python kubeFlow/submit.py
 
+  # 3. Run test cases
+  - name: '${_MLOPS_BUILD_IMAGE}'
+    id: Run unit tests
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        if [ "${BRANCH_NAME}" = "production" ]; then export ENV="prod"; else export ENV="dev"; fi
+        pytest -q tests
 
-  # 3. Build Streamlit image
-  - name: 'gcr.io/cloud-builders/docker'
+  # 4. Build Streamlit image
+  - name: '${_DOCKER_IMAGE}'
     id: Build image
-    args:
-      - build
-      - -t
-      - ${_ARTIFACT_HOST}/${_PROJECT_ID}/${_ARTIFACT_REPO}/mlops-streamlit:$BUILD_ID
-      - .
+    args: ['build', '-t', '${_STREAMLIT_IMAGE}:$BUILD_ID', '.']
 
-  # 4. Push image
-  - name: 'gcr.io/cloud-builders/docker'
+  # 5. Push image
+  - name: '${_DOCKER_IMAGE}'
     id: Push image
-    args:
-      - push
-      - ${_ARTIFACT_HOST}/${_PROJECT_ID}/${_ARTIFACT_REPO}/mlops-streamlit:$BUILD_ID
+    args: ['push', '${_STREAMLIT_IMAGE}:$BUILD_ID']
 
-  # 5. Deploy to GKE
+  # 6. Deploy to GKE
   - name: 'gcr.io/cloud-builders/gke-deploy'
     id: Deploy to GKE
-    # Only deploy the image when branch name = production
     entrypoint: bash
     args:
       - -c
@@ -55,14 +57,14 @@ steps:
         if [ "$BRANCH_NAME" = "production" ]; then
           gke-deploy run \
             --filename=k8s/ \
-            --image=${_ARTIFACT_HOST}/${_PROJECT_ID}/${_ARTIFACT_REPO}/mlops-streamlit:$BUILD_ID \
+            --image="${_STREAMLIT_IMAGE}:$BUILD_ID" \
             --cluster=mlops-cluster \
             --location=europe-west1-b \
             --namespace=default
         else
-          echo "Deployment skipped. Not running on production branch. Current branch: $BRANCH_NAME"
+          echo "INFO: Skipping deployment."
+          echo "INFO: Expected branch='production' but got '${BRANCH_NAME}'."
         fi
 
-
 images:
-  - ${_ARTIFACT_HOST}/${_PROJECT_ID}/${_ARTIFACT_REPO}/mlops-streamlit:$BUILD_ID
+  - '${_STREAMLIT_IMAGE}:$BUILD_ID'

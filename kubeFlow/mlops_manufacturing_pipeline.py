@@ -107,15 +107,13 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 @component(
     base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
 )
-def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_name: str, env: str, feature_set: str):
+def train_model_op(prepared_data: Input[Dataset], model: Output[Model], feature_set: str):
     import pandas as pd
     import joblib
     import os
-    from google.cloud import storage
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
-    from sklearn.ensemble import BaggingClassifier
 
     features = [c.strip() for c in feature_set.split(",")]
     # Load data
@@ -155,13 +153,6 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], bucket_n
     joblib.dump(knn_model, local_model_path)
     print(f"Model saved locally at {local_model_path}")
 
-    # Upload model to GCS (Python SDK)
-    client = storage.Client()
-    bucket = client.bucket(bucket_name)
-    gcs_blob_path = f"{env}/model/model.joblib"
-    blob = bucket.blob(gcs_blob_path)
-    blob.upload_from_filename(local_model_path)
-    print(f"Model uploaded to gs://{bucket_name}/{gcs_blob_path}")
 
 # Evaluate model component
 @component(
@@ -172,7 +163,7 @@ def evaluate_model_op(
     prepared_data: Input[Dataset],
     metrics: Output[Metrics],
     feature_set: str,
-    f1_threshold: float = 0.7,
+    f1_threshold: float,
 ) -> NamedTuple("Outputs", [("deploy_decision", str)]):
     import os
     import pandas as pd
@@ -217,6 +208,55 @@ def evaluate_model_op(
     print(f'F1-Score for "breaks": {f1}')
 
     return ("true" if f1 >= f1_threshold else "false",)
+
+# Publish artifacts component
+@component(
+    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0"
+)
+def publish_artifacts_op(
+    bucket_name: str,
+    env: str,
+    run_id: str,
+    feature_set: str,
+    raw_data: Input[Dataset],
+    prepared_data: Input[Dataset],
+    model: Input[Model],
+    deploy_decision: str,
+):
+    import os
+    import json
+    from datetime import datetime, timezone
+    from google.cloud import storage
+
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+
+    raw_path = os.path.join(raw_data.path, "raw_data.csv")
+    prepared_path = os.path.join(prepared_data.path, "prepared_data.csv")
+    model_path = os.path.join(model.path, "model.joblib")
+
+    base = f"artifacts/{env}/latest"
+
+    bucket.blob(f"{base}/raw_data.csv").upload_from_filename(raw_path)
+    bucket.blob(f"{base}/prepared_data.csv").upload_from_filename(prepared_path)
+    bucket.blob(f"{base}/model.joblib").upload_from_filename(model_path)
+
+    metadata = {
+        "env": env,
+        "run_id": run_id,
+        "published_at_utc": datetime.now(timezone.utc).isoformat(),
+        "feature_set": feature_set,
+        "deploy_decision": deploy_decision,
+        "raw_data_gcs": f"gs://{bucket_name}/{base}/raw_data.csv",
+        "prepared_data_gcs": f"gs://{bucket_name}/{base}/prepared_data.csv",
+        "model_gcs": f"gs://{bucket_name}/{base}/model.joblib",
+    }
+    bucket.blob(f"{base}/metadata.json").upload_from_string(
+        json.dumps(metadata, indent=2),
+        content_type="application/json",
+    )
+
+    print(f"Published artifacts to gs://{bucket_name}/{base}/")
 
 # Register model to Model Registry
 @component(
@@ -277,8 +317,6 @@ def mlops_manufacturing_pipeline(
     # Train model
     train_task = train_model_op(
         prepared_data=prepare_task.outputs["prepared_data"],
-        bucket_name=bucket_name,
-        env=env,
         feature_set=feature_set
     )
     train_task.set_caching_options(False)
@@ -291,6 +329,19 @@ def mlops_manufacturing_pipeline(
         feature_set=feature_set,
     )
     evaluate_task.set_caching_options(False)
+
+    # Publish artifacts
+    publish_task = publish_artifacts_op(
+        bucket_name=bucket_name,
+        env=env,
+        run_id=run_id,
+        feature_set=feature_set,
+        raw_data=extract_task.outputs["raw_data"],
+        prepared_data=prepare_task.outputs["prepared_data"],
+        model=train_task.outputs["model"],
+        deploy_decision=evaluate_task.outputs["deploy_decision"],
+    )
+    publish_task.set_caching_options(False)
 
     # Register model if evaluation passes
     with dsl.If(evaluate_task.outputs["deploy_decision"] == "true"):
