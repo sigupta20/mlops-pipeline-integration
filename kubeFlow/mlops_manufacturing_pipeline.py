@@ -1,13 +1,11 @@
 from kfp import dsl
 from kfp.dsl import component, Dataset, Input, Output, Model, Metrics, Artifact
-from google.cloud import aiplatform
 from typing import NamedTuple
-import time
 
 
 # Extract data component
 @component(
-    base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
+    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
 )
 def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
     import pandas as pd
@@ -35,9 +33,10 @@ def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
     merged_df.to_csv(output_path, index=False)
     print(f"Raw data written to {output_path}")
 
+
 # Prepare data component
-@component(   
-    base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
+@component(
+    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
 )
 def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
     import pandas as pd
@@ -50,9 +49,9 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
     # 2. Row-wise feature engineering, _ means implies this value is not used
     prepared_rows = []
     for _, row in df.iterrows():
-        first_stage  = row["First_stage"]
+        first_stage = row["First_stage"]
         second_stage = row["Second_stage"]
-        third_stage  = row["Third_stage"]
+        third_stage = row["Third_stage"]
         fourth_stage = row["Fourth_stage"]
 
         prepared_rows.append({
@@ -103,11 +102,20 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
     prepared_df.to_csv(output_path, index=False)
     print("Prepared data written to:", output_path)
 
+
 # Train model component
 @component(
-    base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
+    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
 )
-def train_model_op(prepared_data: Input[Dataset], model: Output[Model], feature_set: str):
+def train_model_op(
+    prepared_data: Input[Dataset],
+    model: Output[Model],
+    feature_set: str,
+    n_neighbors: int,
+    weights: str,
+    p: int,
+    metric: str,
+):
     import pandas as pd
     import joblib
     import os
@@ -129,8 +137,12 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], feature_
     # Split into Training and Test dataset
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
 
-    # Train model
-    knn_model = KNeighborsClassifier(n_neighbors=5,metric="minkowski")
+    knn_model = KNeighborsClassifier(
+        n_neighbors=n_neighbors,
+        weights=weights,
+        metric=metric,
+        p=p,
+    )
     knn_model.fit(X_train, y_train)
 
     # Predict using test dataset
@@ -142,21 +154,21 @@ def train_model_op(prepared_data: Input[Dataset], model: Output[Model], feature_
 
     # Evaluate model
     accuracy = accuracy_score(y_test, y_pred)
-    f1 = f1_score(y_test_binary, y_pred_binary, average='binary')
+    f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
-    print(f'Accuracy for "breaks": {accuracy}')
-    print(f'F1-Score for "breaks": {f1}')
+    print(f"Accuracy: {accuracy}")
+    print(f"F1 (binary): {f1}")
+    print(f"HP: n_neighbors={n_neighbors}, weights={weights}, metric={metric}, p={p}")
 
     # Save model locally to be used in next stage
     os.makedirs(model.path, exist_ok=True)
-    local_model_path = os.path.join(model.path, "model.joblib")
-    joblib.dump(knn_model, local_model_path)
-    print(f"Model saved locally at {local_model_path}")
+    joblib.dump(knn_model, os.path.join(model.path, "model.joblib"))
+    print(f"Model saved locally at {os.path.join(model.path, 'model.joblib')}")
 
 
 # Evaluate model component
 @component(
-    base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
+    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
 )
 def evaluate_model_op(
     model: Input[Model],
@@ -164,15 +176,14 @@ def evaluate_model_op(
     metrics: Output[Metrics],
     feature_set: str,
     f1_threshold: float,
+    run_id: str,
+    env: str,
 ) -> NamedTuple("Outputs", [("deploy_decision", str)]):
     import os
     import pandas as pd
     import joblib
-    from sklearn.metrics import f1_score
-    from sklearn.neighbors import KNeighborsClassifier
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
-
 
     features = [c.strip() for c in feature_set.split(",")]
     # Load data
@@ -203,15 +214,18 @@ def evaluate_model_op(
     # log feature info too
     metrics.log_metric("num_features", len([c.strip() for c in feature_set.split(",")]))
     metrics.metadata["feature_set"] = feature_set
+    metrics.metadata["run_id"] = run_id
+    metrics.metadata["env"] = env
 
     print(f'Accuracy for "breaks": {accuracy}')
     print(f'F1-Score for "breaks": {f1}')
 
     return ("true" if f1 >= f1_threshold else "false",)
 
+
 # Publish artifacts component
 @component(
-    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0"
+    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
 )
 def publish_artifacts_op(
     bucket_name: str,
@@ -258,39 +272,65 @@ def publish_artifacts_op(
 
     print(f"Published artifacts to gs://{bucket_name}/{base}/")
 
+
 # Register model to Model Registry
 @component(
-    base_image='europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0'
+    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
 )
 def register_model_op(
     project_id: str,
     location: str,
     model: Input[Model],
     display_name: str,
-    feature_set: str, 
+    feature_set: str,
     run_id: str,
+    env: str,
     model_resource: Output[Artifact],
 ):
+    import json
     from google.cloud import aiplatform
 
     aiplatform.init(project=project_id, location=location)
     print(f"Registering model from: {model.path}")
+
+    # IMPORTANT: labels must be simple + short; do NOT put full feature_set here
     uploaded_model = aiplatform.Model.upload(
         display_name=display_name,
         artifact_uri=model.path,
         serving_container_image_uri="europe-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
-        description=f"feature_set={feature_set}",
+        description=f"env={env}; run_id={run_id}; feature_set={feature_set}",
+        labels={
+            "env": env.lower().replace("_", "-")[:63],
+            "run_id": str(run_id)[:63],
+            "model_type": "knn",
+        },
         sync=True,
     )
+
+    payload = {
+        "vertex_model_resource_name": uploaded_model.resource_name,
+        "display_name": display_name,
+        "run_id": run_id,
+        "env": env,
+        "feature_set": feature_set,
+        "artifact_uri": model.path,
+    }
+
     with open(model_resource.path, "w") as f:
-        f.write(uploaded_model.resource_name)
+        json.dump(payload, f, indent=2)
+
+    model_resource.metadata["vertex_model_resource_name"] = uploaded_model.resource_name
+    model_resource.metadata["display_name"] = display_name
+    model_resource.metadata["run_id"] = run_id
+    model_resource.metadata["env"] = env
+    model_resource.metadata["feature_set"] = feature_set
+    model_resource.metadata["artifact_uri"] = model.path
 
     print("Model registered:", uploaded_model.resource_name)
 
 
 # Pipeline definition
 @dsl.pipeline(name="mlops-manufacturing-pipeline", description="Train, evaluate and register ML model")
-
 def mlops_manufacturing_pipeline(
     project_id: str,
     location: str,
@@ -300,37 +340,37 @@ def mlops_manufacturing_pipeline(
     model_display_name: str,
     f1_threshold: float,
     feature_set: str,
+    n_neighbors: int,
+    weights: str,
+    p: int,
+    metric: str = "minkowski",
 ):
-
-    # Extract data
-    extract_task = extract_data_op(
-        bucket_name=bucket_name
-    )
+    extract_task = extract_data_op(bucket_name=bucket_name)
     extract_task.set_caching_options(False)
 
-    # Prepare data
-    prepare_task = prepare_data_op(
-        raw_data=extract_task.outputs["raw_data"]
-    )
+    prepare_task = prepare_data_op(raw_data=extract_task.outputs["raw_data"])
     prepare_task.set_caching_options(False)
 
-    # Train model
     train_task = train_model_op(
         prepared_data=prepare_task.outputs["prepared_data"],
-        feature_set=feature_set
+        feature_set=feature_set,
+        n_neighbors=n_neighbors,
+        weights=weights,
+        p=p,
+        metric=metric,
     )
     train_task.set_caching_options(False)
 
-    # Evaluate model
     evaluate_task = evaluate_model_op(
         model=train_task.outputs["model"],
         prepared_data=prepare_task.outputs["prepared_data"],
-        f1_threshold=f1_threshold,
         feature_set=feature_set,
+        f1_threshold=f1_threshold,
+        run_id=run_id,
+        env=env,
     )
     evaluate_task.set_caching_options(False)
 
-    # Publish artifacts
     publish_task = publish_artifacts_op(
         bucket_name=bucket_name,
         env=env,
@@ -343,13 +383,14 @@ def mlops_manufacturing_pipeline(
     )
     publish_task.set_caching_options(False)
 
-    # Register model if evaluation passes
     with dsl.If(evaluate_task.outputs["deploy_decision"] == "true"):
-        register_model_op(
+        register_task = register_model_op(
             project_id=project_id,
             location=location,
             model=train_task.outputs["model"],
             display_name=model_display_name,
             feature_set=feature_set,
             run_id=run_id,
+            env=env,
         )
+        register_task.set_caching_options(False)

@@ -54,6 +54,11 @@ PIPELINE_PARAMS = {
     "model_display_name": f"mlops-model-{ENV}",
     "feature_set": ",".join(FEATURES),
     "f1_threshold": 0.80,
+    # Model hyperparameters
+    "n_neighbors": 7,
+    "weights": "distance",
+    "p": 2,
+    "metric": "minkowski",
 }
 
 aiplatform.init(project=PROJECT_ID, location=REGION)
