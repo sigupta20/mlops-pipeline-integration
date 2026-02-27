@@ -11,7 +11,7 @@ BUCKET_NAME = "mlops-pipeline-01"
 
 PIPELINE_ROOT = f"gs://{BUCKET_NAME}/pipelines/{ENV}/{RUN_ID}"
 DISPLAY_NAME = f"mlops-training-{ENV}-{RUN_ID}"
-TEMPLATE_PATH = "mlops_manufacturing_pipeline.yaml"
+TEMPLATE_PATH = "pipeline.yaml"
 
 # List of features
 FEATURES = [
