@@ -330,7 +330,7 @@ def register_model_op(
 
 
 # Pipeline definition
-@dsl.pipeline(name="pipeline", description="Train, evaluate and register ML model")
+@dsl.pipeline(name="mlops-pipeline", description="Train, evaluate and register ML model")
 def pipeline(
     project_id: str,
     location: str,

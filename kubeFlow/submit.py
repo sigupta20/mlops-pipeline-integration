@@ -10,12 +10,12 @@ REGION = "europe-west1"
 BUCKET_NAME = "mlops-pipeline-01"
 
 PIPELINE_ROOT = f"gs://{BUCKET_NAME}/pipelines/{ENV}/{RUN_ID}"
-DISPLAY_NAME = f"mlops-training-{ENV}-{RUN_ID}"
+DISPLAY_NAME = f"mlops-pipeline-{ENV}-{RUN_ID}"
 TEMPLATE_PATH = "pipeline.yaml"
 
 # List of features
 FEATURES = [
-    "job_id",
+    # "job_id",
     "priority",
     "family_type",
     # "smd_0",
@@ -55,7 +55,7 @@ PIPELINE_PARAMS = {
     "feature_set": ",".join(FEATURES),
     "f1_threshold": 0.80,
     # Model hyperparameters
-    "n_neighbors": 7,
+    "n_neighbors": 5,
     "weights": "distance",
     "p": 2,
     "metric": "minkowski",
@@ -70,5 +70,5 @@ job = PipelineJob(
     parameter_values=PIPELINE_PARAMS,
 )
 
-job.submit(experiment=f"mlops-manufacturing-{ENV}")
+job.submit(experiment=f"mlops-pipeline-{ENV}")
 job.wait()
