@@ -1,5 +1,5 @@
 # PIPELINE DEFINITION
-# Name: mlops-manufacturing-pipeline
+# Name: mlops-pipeline
 # Description: Train, evaluate and register ML model
 # Inputs:
 #    bucket_name: str
@@ -7,9 +7,13 @@
 #    f1_threshold: float
 #    feature_set: str
 #    location: str
+#    metric: str [Default: 'minkowski']
 #    model_display_name: str
+#    n_neighbors: int
+#    p: int
 #    project_id: str
 #    run_id: str
+#    weights: str
 # Outputs:
 #    evaluate-model-op-metrics: system.Metrics
 components:
@@ -17,8 +21,7 @@ components:
     dag:
       tasks:
         register-model-op:
-          cachingOptions:
-            enableCache: true
+          cachingOptions: {}
           componentRef:
             name: comp-register-model-op
           inputs:
@@ -28,6 +31,8 @@ components:
             parameters:
               display_name:
                 componentInputParameter: pipelinechannel--model_display_name
+              env:
+                componentInputParameter: pipelinechannel--env
               feature_set:
                 componentInputParameter: pipelinechannel--feature_set
               location:
@@ -45,6 +50,8 @@ components:
             schemaTitle: system.Model
             schemaVersion: 0.0.1
       parameters:
+        pipelinechannel--env:
+          parameterType: STRING
         pipelinechannel--evaluate-model-op-deploy_decision:
           parameterType: STRING
         pipelinechannel--feature_set:
@@ -70,11 +77,13 @@ components:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
       parameters:
+        env:
+          parameterType: STRING
         f1_threshold:
-          defaultValue: 0.7
-          isOptional: true
           parameterType: NUMBER_DOUBLE
         feature_set:
+          parameterType: STRING
+        run_id:
           parameterType: STRING
     outputDefinitions:
       artifacts:
@@ -111,6 +120,33 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
+  comp-publish-artifacts-op:
+    executorLabel: exec-publish-artifacts-op
+    inputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        prepared_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        bucket_name:
+          parameterType: STRING
+        deploy_decision:
+          parameterType: STRING
+        env:
+          parameterType: STRING
+        feature_set:
+          parameterType: STRING
+        run_id:
+          parameterType: STRING
   comp-register-model-op:
     executorLabel: exec-register-model-op
     inputDefinitions:
@@ -121,6 +157,8 @@ components:
             schemaVersion: 0.0.1
       parameters:
         display_name:
+          parameterType: STRING
+        env:
           parameterType: STRING
         feature_set:
           parameterType: STRING
@@ -145,11 +183,15 @@ components:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
       parameters:
-        bucket_name:
-          parameterType: STRING
-        env:
-          parameterType: STRING
         feature_set:
+          parameterType: STRING
+        metric:
+          parameterType: STRING
+        n_neighbors:
+          parameterType: NUMBER_INTEGER
+        p:
+          parameterType: NUMBER_INTEGER
+        weights:
           parameterType: STRING
     outputDefinitions:
       artifacts:
@@ -187,11 +229,10 @@ deploymentSpec:
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef evaluate_model_op(\n    model: Input[Model],\n    prepared_data:\
           \ Input[Dataset],\n    metrics: Output[Metrics],\n    feature_set: str,\n\
-          \    f1_threshold: float = 0.7,\n) -> NamedTuple(\"Outputs\", [(\"deploy_decision\"\
-          , str)]):\n    import os\n    import pandas as pd\n    import joblib\n \
-          \   from sklearn.metrics import f1_score\n    from sklearn.neighbors import\
-          \ KNeighborsClassifier\n    from sklearn.model_selection import train_test_split\n\
-          \    from sklearn.metrics import accuracy_score, f1_score\n\n\n    features\
+          \    f1_threshold: float,\n    run_id: str,\n    env: str,\n) -> NamedTuple(\"\
+          Outputs\", [(\"deploy_decision\", str)]):\n    import os\n    import pandas\
+          \ as pd\n    import joblib\n    from sklearn.model_selection import train_test_split\n\
+          \    from sklearn.metrics import accuracy_score, f1_score\n\n    features\
           \ = [c.strip() for c in feature_set.split(\",\")]\n    # Load data\n   \
           \ df = pd.read_csv(os.path.join(prepared_data.path, \"prepared_data.csv\"\
           ), usecols=features)\n\n    X = df.drop(\"breaks\", axis=1)\n    y = df[\"\
@@ -206,10 +247,11 @@ deploymentSpec:
           \ metrics.log_metric(\"accuracy\", accuracy)\n    metrics.log_metric(\"\
           f1_score_binary\", f1)\n    # log feature info too\n    metrics.log_metric(\"\
           num_features\", len([c.strip() for c in feature_set.split(\",\")]))\n  \
-          \  metrics.metadata[\"feature_set\"] = feature_set\n\n    print(f'Accuracy\
+          \  metrics.metadata[\"feature_set\"] = feature_set\n    metrics.metadata[\"\
+          run_id\"] = run_id\n    metrics.metadata[\"env\"] = env\n\n    print(f'Accuracy\
           \ for \"breaks\": {accuracy}')\n    print(f'F1-Score for \"breaks\": {f1}')\n\
           \n    return (\"true\" if f1 >= f1_threshold else \"false\",)\n\n"
-        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1
     exec-extract-data-op:
       container:
         args:
@@ -247,7 +289,7 @@ deploymentSpec:
           \ pd.concat(dfs, ignore_index=True)\n    os.makedirs(raw_data.path, exist_ok=True)\n\
           \    output_path = os.path.join(raw_data.path, \"raw_data.csv\")\n    merged_df.to_csv(output_path,\
           \ index=False)\n    print(f\"Raw data written to {output_path}\")\n\n"
-        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1
     exec-prepare-data-op:
       container:
         args:
@@ -279,8 +321,8 @@ deploymentSpec:
           \ = os.path.join(raw_data.path, \"raw_data.csv\")\n    df = pd.read_csv(raw_data_path)\n\
           \n    # 2. Row-wise feature engineering, _ means implies this value is not\
           \ used\n    prepared_rows = []\n    for _, row in df.iterrows():\n     \
-          \   first_stage  = row[\"First_stage\"]\n        second_stage = row[\"Second_stage\"\
-          ]\n        third_stage  = row[\"Third_stage\"]\n        fourth_stage = row[\"\
+          \   first_stage = row[\"First_stage\"]\n        second_stage = row[\"Second_stage\"\
+          ]\n        third_stage = row[\"Third_stage\"]\n        fourth_stage = row[\"\
           Fourth_stage\"]\n\n        prepared_rows.append({\n            # Identifiers\
           \ / metadata\n            \"job_id\": row[\"ID\"],\n            \"priority\"\
           : row[\"Priority\"],\n            \"family_type\": row[\"Family_type\"],\n\
@@ -310,7 +352,55 @@ deploymentSpec:
           \ exist_ok=True)\n    output_path = os.path.join(prepared_data.path, \"\
           prepared_data.csv\")\n    prepared_df.to_csv(output_path, index=False)\n\
           \    print(\"Prepared data written to:\", output_path)\n\n"
-        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1
+    exec-publish-artifacts-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - publish_artifacts_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef publish_artifacts_op(\n    bucket_name: str,\n    env: str,\n\
+          \    run_id: str,\n    feature_set: str,\n    raw_data: Input[Dataset],\n\
+          \    prepared_data: Input[Dataset],\n    model: Input[Model],\n    deploy_decision:\
+          \ str,\n):\n    import os\n    import json\n    from datetime import datetime,\
+          \ timezone\n    from google.cloud import storage\n\n    client = storage.Client()\n\
+          \    bucket = client.bucket(bucket_name)\n\n    raw_path = os.path.join(raw_data.path,\
+          \ \"raw_data.csv\")\n    prepared_path = os.path.join(prepared_data.path,\
+          \ \"prepared_data.csv\")\n    model_path = os.path.join(model.path, \"model.joblib\"\
+          )\n\n    base = f\"artifacts/{env}/latest\"\n\n    bucket.blob(f\"{base}/raw_data.csv\"\
+          ).upload_from_filename(raw_path)\n    bucket.blob(f\"{base}/prepared_data.csv\"\
+          ).upload_from_filename(prepared_path)\n    bucket.blob(f\"{base}/model.joblib\"\
+          ).upload_from_filename(model_path)\n\n    metadata = {\n        \"env\"\
+          : env,\n        \"run_id\": run_id,\n        \"published_at_utc\": datetime.now(timezone.utc).isoformat(),\n\
+          \        \"feature_set\": feature_set,\n        \"deploy_decision\": deploy_decision,\n\
+          \        \"raw_data_gcs\": f\"gs://{bucket_name}/{base}/raw_data.csv\",\n\
+          \        \"prepared_data_gcs\": f\"gs://{bucket_name}/{base}/prepared_data.csv\"\
+          ,\n        \"model_gcs\": f\"gs://{bucket_name}/{base}/model.joblib\",\n\
+          \    }\n    bucket.blob(f\"{base}/metadata.json\").upload_from_string(\n\
+          \        json.dumps(metadata, indent=2),\n        content_type=\"application/json\"\
+          ,\n    )\n\n    print(f\"Published artifacts to gs://{bucket_name}/{base}/\"\
+          )\n\n"
+        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1
     exec-register-model-op:
       container:
         args:
@@ -338,17 +428,30 @@ deploymentSpec:
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef register_model_op(\n    project_id: str,\n    location: str,\n\
-          \    model: Input[Model],\n    display_name: str,\n    feature_set: str,\
-          \ \n    run_id: str,\n    model_resource: Output[Artifact],\n):\n    from\
-          \ google.cloud import aiplatform\n\n    aiplatform.init(project=project_id,\
+          \    model: Input[Model],\n    display_name: str,\n    feature_set: str,\n\
+          \    run_id: str,\n    env: str,\n    model_resource: Output[Artifact],\n\
+          ):\n    import json\n    from google.cloud import aiplatform\n\n    aiplatform.init(project=project_id,\
           \ location=location)\n    print(f\"Registering model from: {model.path}\"\
-          )\n    uploaded_model = aiplatform.Model.upload(\n        display_name=display_name,\n\
+          )\n\n    # IMPORTANT: labels must be simple + short; do NOT put full feature_set\
+          \ here\n    uploaded_model = aiplatform.Model.upload(\n        display_name=display_name,\n\
           \        artifact_uri=model.path,\n        serving_container_image_uri=\"\
           europe-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest\",\n \
-          \       description=f\"feature_set={feature_set}\",\n        sync=True,\n\
-          \    )\n    with open(model_resource.path, \"w\") as f:\n        f.write(uploaded_model.resource_name)\n\
-          \n    print(\"Model registered:\", uploaded_model.resource_name)\n\n"
-        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+          \       description=f\"env={env}; run_id={run_id}; feature_set={feature_set}\"\
+          ,\n        labels={\n            \"env\": env.lower().replace(\"_\", \"\
+          -\")[:63],\n            \"run_id\": str(run_id)[:63],\n            \"model_type\"\
+          : \"knn\",\n        },\n        sync=True,\n    )\n\n    payload = {\n \
+          \       \"vertex_model_resource_name\": uploaded_model.resource_name,\n\
+          \        \"display_name\": display_name,\n        \"run_id\": run_id,\n\
+          \        \"env\": env,\n        \"feature_set\": feature_set,\n        \"\
+          artifact_uri\": model.path,\n    }\n\n    with open(model_resource.path,\
+          \ \"w\") as f:\n        json.dump(payload, f, indent=2)\n\n    model_resource.metadata[\"\
+          vertex_model_resource_name\"] = uploaded_model.resource_name\n    model_resource.metadata[\"\
+          display_name\"] = display_name\n    model_resource.metadata[\"run_id\"]\
+          \ = run_id\n    model_resource.metadata[\"env\"] = env\n    model_resource.metadata[\"\
+          feature_set\"] = feature_set\n    model_resource.metadata[\"artifact_uri\"\
+          ] = model.path\n\n    print(\"Model registered:\", uploaded_model.resource_name)\n\
+          \n"
+        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1
     exec-train-model-op:
       container:
         args:
@@ -375,38 +478,35 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef train_model_op(prepared_data: Input[Dataset], model: Output[Model],\
-          \ bucket_name: str, env: str, feature_set: str):\n    import pandas as pd\n\
-          \    import joblib\n    import os\n    from google.cloud import storage\n\
-          \    from sklearn.neighbors import KNeighborsClassifier\n    from sklearn.model_selection\
-          \ import train_test_split\n    from sklearn.metrics import accuracy_score,\
-          \ f1_score\n    from sklearn.ensemble import BaggingClassifier\n\n    features\
-          \ = [c.strip() for c in feature_set.split(\",\")]\n    # Load data\n   \
-          \ df = pd.read_csv(os.path.join(prepared_data.path, \"prepared_data.csv\"\
-          ), usecols=features)\n\n    # Target variable: breaks\n    target = 'breaks'\n\
-          \n    # Define features and separate target\n    X = df.drop(target, axis=1)\n\
-          \    y = df[target]\n\n    # Split into Training and Test dataset\n    X_train,\
-          \ X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=52)\n\
-          \n    # Train model\n    knn_model = KNeighborsClassifier(n_neighbors=5,metric=\"\
-          minkowski\")\n    knn_model.fit(X_train, y_train)\n\n    # Predict using\
-          \ test dataset\n    y_pred = knn_model.predict(X_test)\n\n    # convert\
+          \ *\n\ndef train_model_op(\n    prepared_data: Input[Dataset],\n    model:\
+          \ Output[Model],\n    feature_set: str,\n    n_neighbors: int,\n    weights:\
+          \ str,\n    p: int,\n    metric: str,\n):\n    import pandas as pd\n   \
+          \ import joblib\n    import os\n    from sklearn.neighbors import KNeighborsClassifier\n\
+          \    from sklearn.model_selection import train_test_split\n    from sklearn.metrics\
+          \ import accuracy_score, f1_score\n\n    features = [c.strip() for c in\
+          \ feature_set.split(\",\")]\n    # Load data\n    df = pd.read_csv(os.path.join(prepared_data.path,\
+          \ \"prepared_data.csv\"), usecols=features)\n\n    # Target variable: breaks\n\
+          \    target = 'breaks'\n\n    # Define features and separate target\n  \
+          \  X = df.drop(target, axis=1)\n    y = df[target]\n\n    # Split into Training\
+          \ and Test dataset\n    X_train, X_test, y_train, y_test = train_test_split(X,\
+          \ y, test_size=0.3, random_state=52)\n\n    knn_model = KNeighborsClassifier(\n\
+          \        n_neighbors=n_neighbors,\n        weights=weights,\n        metric=metric,\n\
+          \        p=p,\n    )\n    knn_model.fit(X_train, y_train)\n\n    # Predict\
+          \ using test dataset\n    y_pred = knn_model.predict(X_test)\n\n    # convert\
           \ labels into binary format: [0,1]\n    y_test_binary = (y_test != 0).astype(int)\n\
           \    y_pred_binary = (y_pred != 0).astype(int)\n\n    # Evaluate model\n\
           \    accuracy = accuracy_score(y_test, y_pred)\n    f1 = f1_score(y_test_binary,\
-          \ y_pred_binary, average='binary')\n\n    print(f'Accuracy for \"breaks\"\
-          : {accuracy}')\n    print(f'F1-Score for \"breaks\": {f1}')\n\n    # Save\
-          \ model locally to be used in next stage\n    os.makedirs(model.path, exist_ok=True)\n\
-          \    local_model_path = os.path.join(model.path, \"model.joblib\")\n   \
-          \ joblib.dump(knn_model, local_model_path)\n    print(f\"Model saved locally\
-          \ at {local_model_path}\")\n\n    # Upload model to GCS (Python SDK)\n \
-          \   client = storage.Client()\n    bucket = client.bucket(bucket_name)\n\
-          \    gcs_blob_path = f\"{env}/model/model.joblib\"\n    blob = bucket.blob(gcs_blob_path)\n\
-          \    blob.upload_from_filename(local_model_path)\n    print(f\"Model uploaded\
-          \ to gs://{bucket_name}/{gcs_blob_path}\")\n\n"
-        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+          \ y_pred_binary, average=\"binary\")\n\n    print(f\"Accuracy: {accuracy}\"\
+          )\n    print(f\"F1 (binary): {f1}\")\n    print(f\"HP: n_neighbors={n_neighbors},\
+          \ weights={weights}, metric={metric}, p={p}\")\n\n    # Save model locally\
+          \ to be used in next stage\n    os.makedirs(model.path, exist_ok=True)\n\
+          \    joblib.dump(knn_model, os.path.join(model.path, \"model.joblib\"))\n\
+          \    print(f\"Model saved locally at {os.path.join(model.path, 'model.joblib')}\"\
+          )\n\n"
+        image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1
 pipelineInfo:
   description: Train, evaluate and register ML model
-  name: mlops-manufacturing-pipeline
+  name: mlops-pipeline
 root:
   dag:
     outputs:
@@ -429,6 +529,8 @@ root:
                 outputArtifactKey: model
                 producerTask: train-model-op
           parameters:
+            pipelinechannel--env:
+              componentInputParameter: env
             pipelinechannel--evaluate-model-op-deploy_decision:
               taskOutputParameter:
                 outputParameterKey: deploy_decision
@@ -466,10 +568,14 @@ root:
                 outputArtifactKey: prepared_data
                 producerTask: prepare-data-op
           parameters:
+            env:
+              componentInputParameter: env
             f1_threshold:
               componentInputParameter: f1_threshold
             feature_set:
               componentInputParameter: feature_set
+            run_id:
+              componentInputParameter: run_id
         taskInfo:
           name: evaluate-model-op
       extract-data-op:
@@ -496,6 +602,44 @@ root:
                 producerTask: extract-data-op
         taskInfo:
           name: prepare-data-op
+      publish-artifacts-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-publish-artifacts-op
+        dependentTasks:
+        - evaluate-model-op
+        - extract-data-op
+        - prepare-data-op
+        - train-model-op
+        inputs:
+          artifacts:
+            model:
+              taskOutputArtifact:
+                outputArtifactKey: model
+                producerTask: train-model-op
+            prepared_data:
+              taskOutputArtifact:
+                outputArtifactKey: prepared_data
+                producerTask: prepare-data-op
+            raw_data:
+              taskOutputArtifact:
+                outputArtifactKey: raw_data
+                producerTask: extract-data-op
+          parameters:
+            bucket_name:
+              componentInputParameter: bucket_name
+            deploy_decision:
+              taskOutputParameter:
+                outputParameterKey: deploy_decision
+                producerTask: evaluate-model-op
+            env:
+              componentInputParameter: env
+            feature_set:
+              componentInputParameter: feature_set
+            run_id:
+              componentInputParameter: run_id
+        taskInfo:
+          name: publish-artifacts-op
       train-model-op:
         cachingOptions: {}
         componentRef:
@@ -509,12 +653,16 @@ root:
                 outputArtifactKey: prepared_data
                 producerTask: prepare-data-op
           parameters:
-            bucket_name:
-              componentInputParameter: bucket_name
-            env:
-              componentInputParameter: env
             feature_set:
               componentInputParameter: feature_set
+            metric:
+              componentInputParameter: metric
+            n_neighbors:
+              componentInputParameter: n_neighbors
+            p:
+              componentInputParameter: p
+            weights:
+              componentInputParameter: weights
         taskInfo:
           name: train-model-op
   inputDefinitions:
@@ -529,11 +677,21 @@ root:
         parameterType: STRING
       location:
         parameterType: STRING
+      metric:
+        defaultValue: minkowski
+        isOptional: true
+        parameterType: STRING
       model_display_name:
         parameterType: STRING
+      n_neighbors:
+        parameterType: NUMBER_INTEGER
+      p:
+        parameterType: NUMBER_INTEGER
       project_id:
         parameterType: STRING
       run_id:
+        parameterType: STRING
+      weights:
         parameterType: STRING
   outputDefinitions:
     artifacts:
