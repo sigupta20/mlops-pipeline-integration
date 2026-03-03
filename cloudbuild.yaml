@@ -11,7 +11,7 @@ steps:
   - name: '${_MLOPS_BUILD_IMAGE}'
     id: Compile pipeline
     entrypoint: python
-    args: ['kubeFlow/compile_pipeline.py']
+    args: ['kubeFlow/compile.py']
 
   # 2. Submit pipeline
   - name: '${_MLOPS_BUILD_IMAGE}'

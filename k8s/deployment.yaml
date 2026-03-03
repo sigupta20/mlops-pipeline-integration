@@ -13,13 +13,92 @@ spec:
         app: mlops-streamlit
     spec:
       serviceAccountName: mlops-ksa
+
+      volumes:
+        - name: model-vol
+          emptyDir: {}
+
+      initContainers:
+        - name: fetch-latest-model
+          image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1
+          env:
+            - name: PROJECT_ID
+              value: "mlops-pipeline-01"
+            - name: VERTEX_LOCATION
+              value: "europe-west1"
+            # ✅ prod: mlops-model-prod ; dev: mlops-model-dev
+            - name: MODEL_DISPLAY_NAME
+              value: "mlops-model-prod"
+          volumeMounts:
+            - name: model-vol
+              mountPath: /models
+          command: ["bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              python - <<'PY'
+              import os
+              from google.cloud import aiplatform
+              from google.cloud import storage
+
+              project = os.environ["PROJECT_ID"]
+              location = os.environ["VERTEX_LOCATION"]
+              display_name = os.environ["MODEL_DISPLAY_NAME"]
+
+              aiplatform.init(project=project, location=location)
+
+              models = aiplatform.Model.list(
+                  filter=f'display_name="{display_name}"',
+                  order_by="create_time desc",
+              )
+              if not models:
+                  raise RuntimeError(f"No model found with display_name={display_name}")
+
+              m = models[0]
+              artifact_uri = m.gca_resource.artifact_uri
+              print("Latest model:", m.resource_name)
+              print("artifact_uri:", artifact_uri)
+
+              if not artifact_uri.startswith("gs://"):
+                  raise RuntimeError(f"Unexpected artifact_uri: {artifact_uri}")
+
+              _, rest = artifact_uri.split("gs://", 1)
+              bucket_name, prefix = rest.split("/", 1)
+              prefix = prefix.rstrip("/")
+
+              client = storage.Client()
+              bucket = client.bucket(bucket_name)
+
+              # Most common: gs://bucket/prefix/model.joblib
+              candidate = f"{prefix}/model.joblib"
+              blob = bucket.blob(candidate)
+
+              out_path = "/models/model.joblib"
+
+              if blob.exists():
+                  blob.download_to_filename(out_path)
+                  print("Downloaded:", f"gs://{bucket_name}/{candidate}", "->", out_path)
+              else:
+                  # fallback: search under prefix for any model.joblib
+                  found = None
+                  for b in client.list_blobs(bucket_name, prefix=prefix + "/"):
+                      if b.name.endswith("model.joblib"):
+                          found = b.name
+                          break
+                  if not found:
+                      raise RuntimeError(f"model.joblib not found under gs://{bucket_name}/{prefix}/")
+                  bucket.blob(found).download_to_filename(out_path)
+                  print("Downloaded:", f"gs://{bucket_name}/{found}", "->", out_path)
+              PY
+
       containers:
         - name: streamlit
           image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-images/mlops-streamlit
           ports:
             - containerPort: 8080
           env:
-            - name: MODEL_BUCKET
-              value: "mlops-pipeline-01"
-            - name: MODEL_GCS_PATH
-              value: "artifacts/prod/latest/model.joblib"
+            - name: MODEL_PATH
+              value: "/models/model.joblib"
+          volumeMounts:
+            - name: model-vol
+              mountPath: /models
