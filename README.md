@@ -1,6 +1,7 @@
 # mlops_pipeline
 gcloud config set project mlops-pipeline-01
 gcloud auth application-default login
+gcloud auth login
 
 ## Documentation links:
 https://docs.cloud.google.com/kubernetes-engine/docs/tutorials/agentic-adk-vertex#standard

@@ -1,12 +1,10 @@
 from kfp import dsl
 from kfp.dsl import component, Dataset, Input, Output, Model, Metrics, Artifact
 from typing import NamedTuple
-
+BASE_IMAGE = "europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
 
 # Extract data component
-@component(
-    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
-)
+@component(base_image=BASE_IMAGE)
 def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
     import pandas as pd
     from google.cloud import storage
@@ -35,9 +33,7 @@ def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
 
 
 # Prepare data component
-@component(
-    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
-)
+@component(base_image=BASE_IMAGE)
 def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
     import pandas as pd
     import os
@@ -104,9 +100,7 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 
 
 # Train model component
-@component(
-    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
-)
+@component(base_image=BASE_IMAGE)
 def train_model_op(
     prepared_data: Input[Dataset],
     model: Output[Model],
@@ -124,18 +118,19 @@ def train_model_op(
     from sklearn.metrics import accuracy_score, f1_score
 
     features = [c.strip() for c in feature_set.split(",")]
-    # Load data
-    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"), usecols=features)
 
-    # Target variable: breaks
-    target = 'breaks'
+    df = pd.read_csv(
+        os.path.join(prepared_data.path, "prepared_data.csv"),
+        usecols=features,
+    )
 
-    # Define features and separate target
-    X = df.drop(target, axis=1)
+    target = "breaks"
+    X = df.drop(columns=[target])
     y = df[target]
 
-    # Split into Training and Test dataset
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=52
+    )
 
     knn_model = KNeighborsClassifier(
         n_neighbors=n_neighbors,
@@ -145,31 +140,26 @@ def train_model_op(
     )
     knn_model.fit(X_train, y_train)
 
-    # Predict using test dataset
     y_pred = knn_model.predict(X_test)
 
-    # convert labels into binary format: [0,1]
     y_test_binary = (y_test != 0).astype(int)
     y_pred_binary = (y_pred != 0).astype(int)
 
-    # Evaluate model
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
     print(f"Accuracy: {accuracy}")
     print(f"F1 (binary): {f1}")
     print(f"HP: n_neighbors={n_neighbors}, weights={weights}, metric={metric}, p={p}")
+    print(f"Features used: {features}")
 
-    # Save model locally to be used in next stage
     os.makedirs(model.path, exist_ok=True)
     joblib.dump(knn_model, os.path.join(model.path, "model.joblib"))
-    print(f"Model saved locally at {os.path.join(model.path, 'model.joblib')}")
+    print(f"Model saved at {os.path.join(model.path, 'model.joblib')}")
 
 
 # Evaluate model component
-@component(
-    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
-)
+@component(base_image=BASE_IMAGE)
 def evaluate_model_op(
     model: Input[Model],
     prepared_data: Input[Dataset],
@@ -186,47 +176,44 @@ def evaluate_model_op(
     from sklearn.metrics import accuracy_score, f1_score
 
     features = [c.strip() for c in feature_set.split(",")]
-    # Load data
-    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"), usecols=features)
 
-    X = df.drop("breaks", axis=1)
+    df = pd.read_csv(
+        os.path.join(prepared_data.path, "prepared_data.csv"),
+        usecols=features,
+    )
+
+    X = df.drop(columns=["breaks"])
     y = df["breaks"]
 
-    # Split data into test and training data
-    _, X_test, _, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
+    _, X_test, _, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=52
+    )
 
-    # Load model
-    load_model = joblib.load(os.path.join(model.path, "model.joblib"))
+    loaded_model = joblib.load(os.path.join(model.path, "model.joblib"))
+    y_pred = loaded_model.predict(X_test)
 
-    # Predict using test dataset
-    y_pred = load_model.predict(X_test)
-
-    # convert labels into binary format: [0,1]
     y_test_binary = (y_test != 0).astype(int)
     y_pred_binary = (y_pred != 0).astype(int)
 
-    # Evaluate model
     accuracy = accuracy_score(y_test, y_pred)
-    f1 = f1_score(y_test_binary, y_pred_binary, average='binary')
+    f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
     metrics.log_metric("accuracy", accuracy)
     metrics.log_metric("f1_score_binary", f1)
-    # log feature info too
-    metrics.log_metric("num_features", len([c.strip() for c in feature_set.split(",")]))
+    metrics.log_metric("num_features", X.shape[1])
+
     metrics.metadata["feature_set"] = feature_set
     metrics.metadata["run_id"] = run_id
     metrics.metadata["env"] = env
 
     print(f'Accuracy for "breaks": {accuracy}')
-    print(f'F1-Score for "breaks": {f1}')
+    print(f'F1-Score (binary) for "breaks": {f1}')
 
     return ("true" if f1 >= f1_threshold else "false",)
 
 
 # Publish artifacts component
-@component(
-    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
-)
+@component(base_image=BASE_IMAGE)
 def publish_artifacts_op(
     bucket_name: str,
     env: str,
@@ -274,9 +261,7 @@ def publish_artifacts_op(
 
 
 # Register model to Model Registry
-@component(
-    base_image="europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
-)
+@component(base_image=BASE_IMAGE)
 def register_model_op(
     project_id: str,
     location: str,
@@ -292,18 +277,32 @@ def register_model_op(
 
     aiplatform.init(project=project_id, location=location)
     print(f"Registering model from: {model.path}")
+    print(f"display_name={display_name}, env={env}, run_id={run_id}")
 
-    # IMPORTANT: labels must be simple + short; do NOT put full feature_set here
+    env_label = env.lower().replace("_", "-")[:63]
+
+    existing = aiplatform.Model.list(
+        filter=f'display_name="{display_name}"',
+        order_by="create_time desc",
+    )
+
+    parent_model_name = existing[0].resource_name if existing else None
+    if parent_model_name:
+        print("Found parent model (creating new version):", parent_model_name)
+    else:
+        print("No parent model found (creating first model resource).")
+
     uploaded_model = aiplatform.Model.upload(
         display_name=display_name,
         artifact_uri=model.path,
         serving_container_image_uri="europe-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
         description=f"env={env}; run_id={run_id}; feature_set={feature_set}",
         labels={
-            "env": env.lower().replace("_", "-")[:63],
+            "env": env_label,
             "run_id": str(run_id)[:63],
             "model_type": "knn",
         },
+        parent_model=parent_model_name,  # ✅ versioning
         sync=True,
     )
 
@@ -314,19 +313,14 @@ def register_model_op(
         "env": env,
         "feature_set": feature_set,
         "artifact_uri": model.path,
+        "parent_model": parent_model_name,
     }
 
     with open(model_resource.path, "w") as f:
         json.dump(payload, f, indent=2)
 
-    model_resource.metadata["vertex_model_resource_name"] = uploaded_model.resource_name
-    model_resource.metadata["display_name"] = display_name
-    model_resource.metadata["run_id"] = run_id
-    model_resource.metadata["env"] = env
-    model_resource.metadata["feature_set"] = feature_set
-    model_resource.metadata["artifact_uri"] = model.path
-
-    print("Model registered:", uploaded_model.resource_name)
+    model_resource.metadata.update(payload)
+    print("Model registered (model or version):", uploaded_model.resource_name)
 
 
 # Pipeline definition
