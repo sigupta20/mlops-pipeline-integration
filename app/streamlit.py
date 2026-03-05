@@ -1,15 +1,24 @@
 import os
 import streamlit as st
+from google.cloud import storage
 from app.predictor import Predictor, FEATURE_COLUMNS
 
 st.set_page_config(page_title="Manufacturing Breakdown Predictor")
 st.title("Manufacturing Breakdown Predictor")
 
-MODEL_PATH = os.getenv("MODEL_PATH", "/models/model.joblib")
+MODEL_BUCKET = os.getenv("MODEL_BUCKET")
+MODEL_GCS_PATH = os.getenv("MODEL_GCS_PATH")
+
 
 @st.cache_resource
 def get_predictor():
-    return Predictor(MODEL_PATH)
+    client = storage.Client()
+    bucket = client.bucket(MODEL_BUCKET)
+    blob = bucket.blob(MODEL_GCS_PATH)
+    local_path = "/tmp/model.joblib"
+    blob.download_to_filename(local_path)
+    return Predictor(local_path)
+
 
 predictor = get_predictor()
 st.success("Model loaded successfully")

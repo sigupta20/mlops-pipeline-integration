@@ -66,5 +66,20 @@ steps:
           echo "INFO: Expected branch='production' but got '${BRANCH_NAME}'."
         fi
 
+  # # 6. Deploy to GKE
+  # - name: 'gcr.io/cloud-builders/gke-deploy'
+  #   id: Deploy to GKE
+  #   entrypoint: bash
+  #   args:
+  #     - -c
+  #     - |
+  #       gke-deploy run \
+  #         --filename=k8s/ \
+  #         --image="${_STREAMLIT_IMAGE}:$BUILD_ID" \
+  #         --cluster=mlops-cluster \
+  #         --location=europe-west1-b \
+  #         --namespace=default
+
+
 images:
   - '${_STREAMLIT_IMAGE}:$BUILD_ID'
