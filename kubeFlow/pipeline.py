@@ -302,7 +302,7 @@ def register_model_op(
             "run_id": str(run_id)[:63],
             "model_type": "knn",
         },
-        parent_model=parent_model_name,  # ✅ versioning
+        parent_model=parent_model_name,
         sync=True,
     )
 
