@@ -22,7 +22,9 @@ FEATURES = [
     # "aoi_0","aoi_1","aoi_2","aoi_3","aoi_4","processing_time_s2",
     # "ss_0","ss_1","ss_2","ss_3","ss_4","processing_time_s3",
     # "cc_0","cc_1","processing_time_s4",
-    "overall_processing_time","overall_waiting_time","tardiness",
+    "overall_processing_time",
+    "overall_waiting_time",
+    "tardiness",
     "breaks",
 ]
 

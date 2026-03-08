@@ -93,7 +93,7 @@ def test_prepared_data_schema_and_domain_rules():
     assert list(df.columns) == EXPECTED_PREPARED_COLS
     assert df.isna().sum().sum() == 0
 
-    # Check that ALL numeric columns have no negative values
+    # Check to test all numeric values are positive
     numeric_df = df.select_dtypes(include=["number"])
     
     # Find any negative values
