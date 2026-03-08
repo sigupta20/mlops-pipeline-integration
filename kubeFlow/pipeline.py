@@ -24,11 +24,10 @@ def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
     if not dfs:
         raise RuntimeError("No valid CSV files found")
 
-    # Merge all DataFrames into a single DataFrame
-    merged_df = pd.concat(dfs, ignore_index=True)
+    # Merge all DataFrames into a single DataFrame and store data to CSV
     os.makedirs(raw_data.path, exist_ok=True)
     output_path = os.path.join(raw_data.path, "raw_data.csv")
-    merged_df.to_csv(output_path, index=False)
+    pd.concat(dfs, ignore_index=True).to_csv(output_path, index=False)
     print(f"Raw data written to {output_path}")
 
 
@@ -38,9 +37,8 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
     import pandas as pd
     import os
 
-    # 1. Load raw data
-    raw_data_path = os.path.join(raw_data.path, "raw_data.csv")
-    df = pd.read_csv(raw_data_path)
+    # 1. Load raw data and store to dataframe
+    df = pd.read_csv(os.path.join(raw_data.path, "raw_data.csv"))
 
     # 2. Row-wise feature engineering, _ means implies this value is not used
     prepared_rows = []
@@ -92,11 +90,10 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
         })
 
     # 3. Save prepared dataset
-    prepared_df = pd.DataFrame(prepared_rows)
-    os.makedirs(prepared_data.path, exist_ok=True)
     output_path = os.path.join(prepared_data.path, "prepared_data.csv")
-    prepared_df.to_csv(output_path, index=False)
-    print("Prepared data written to:", output_path)
+    os.makedirs(prepared_data.path, exist_ok=True)
+    pd.DataFrame(prepared_rows).to_csv(output_path, index=False)
+    print(f"Prepared data written to: {output_path}")
 
 
 # Train model component
@@ -116,42 +113,42 @@ def train_model_op(
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
-
+     
+    # features set
     features = [c.strip() for c in feature_set.split(",")]
 
-    df = pd.read_csv(
-        os.path.join(prepared_data.path, "prepared_data.csv"),
-        usecols=features,
-    )
+    # Load data
+    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"), usecols=features)
 
+    # Target variable
     target = "breaks"
+
+    # Define features and separate target
     X = df.drop(columns=[target])
     y = df[target]
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=52
-    )
+    # Split into Training and Test dataset
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
 
-    knn_model = KNeighborsClassifier(
-        n_neighbors=n_neighbors,
-        weights=weights,
-        metric=metric,
-        p=p,
-    )
+    # Train model
+    knn_model = KNeighborsClassifier(n_neighbors=n_neighbors,weights=weights,metric=metric,p=p)
     knn_model.fit(X_train, y_train)
 
+    # Predict using test dataset
     y_pred = knn_model.predict(X_test)
 
+    # convert labels into binary format: [0,1]
     y_test_binary = (y_test != 0).astype(int)
     y_pred_binary = (y_pred != 0).astype(int)
 
+    # Calculate Accuracy and F1
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
     print(f"Accuracy: {accuracy}")
     print(f"F1 (binary): {f1}")
-    print(f"HP: n_neighbors={n_neighbors}, weights={weights}, metric={metric}, p={p}")
-    print(f"Features used: {features}")
+    print(f"Hyperparameters: n_neighbors={n_neighbors}, weights={weights}, metric={metric}, p={p}")
+    print(f"Features Set: {features}")
 
     os.makedirs(model.path, exist_ok=True)
     joblib.dump(knn_model, os.path.join(model.path, "model.joblib"))
@@ -168,48 +165,61 @@ def evaluate_model_op(
     f1_threshold: float,
     run_id: str,
     env: str,
-) -> NamedTuple("Outputs", [("deploy_decision", str)]):
+) -> NamedTuple("Outputs", [
+    ("deploy_decision", str),
+    ("accuracy", float),
+    ("f1_score", float),
+]):
     import os
     import pandas as pd
     import joblib
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
 
+    # features set
     features = [c.strip() for c in feature_set.split(",")]
 
-    df = pd.read_csv(
-        os.path.join(prepared_data.path, "prepared_data.csv"),
-        usecols=features,
-    )
+    # Load data
+    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"),usecols=features)
 
     X = df.drop(columns=["breaks"])
     y = df["breaks"]
 
-    _, X_test, _, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=52
-    )
+    # Split data into test and training data
+    _, X_test, _, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
 
+    # Load model
     loaded_model = joblib.load(os.path.join(model.path, "model.joblib"))
+
+    # Predict using test dataset
     y_pred = loaded_model.predict(X_test)
 
+    # convert labels into binary format: [0,1]
     y_test_binary = (y_test != 0).astype(int)
     y_pred_binary = (y_pred != 0).astype(int)
 
+    # Evaluate model
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
+    # Store metadata to the experiments
     metrics.log_metric("accuracy", accuracy)
-    metrics.log_metric("f1_score_binary", f1)
+    metrics.log_metric("f1", f1)
     metrics.log_metric("num_features", X.shape[1])
-
-    metrics.metadata["feature_set"] = feature_set
+    metrics.metadata["environment"] = env
+    metrics.metadata["features"] = feature_set
     metrics.metadata["run_id"] = run_id
-    metrics.metadata["env"] = env
+    metrics.metadata["model_type"] = "knn"
 
-    print(f'Accuracy for "breaks": {accuracy}')
-    print(f'F1-Score (binary) for "breaks": {f1}')
+    print(f'Accuracy: {accuracy}')
+    print(f'F1: {f1}')
 
-    return ("true" if f1 >= f1_threshold else "false",)
+    if f1 < f1_threshold:
+        raise ValueError(
+            f"Model rejected: f1_score_binary={f1:.4f} is below threshold={f1_threshold:.4f}"
+        )
+
+    return ("true" if f1 >= f1_threshold else "false", accuracy, f1)
 
 
 # Publish artifacts component
@@ -218,7 +228,9 @@ def publish_artifacts_op(
     bucket_name: str,
     env: str,
     run_id: str,
-    feature_set: str,
+    features: str,
+    accuracy: float,
+    f1: float,
     raw_data: Input[Dataset],
     prepared_data: Input[Dataset],
     model: Input[Model],
@@ -243,14 +255,13 @@ def publish_artifacts_op(
     bucket.blob(f"{base}/model.joblib").upload_from_filename(model_path)
 
     metadata = {
-        "env": env,
-        "run_id": run_id,
-        "published_at_utc": datetime.now(timezone.utc).isoformat(),
-        "feature_set": feature_set,
-        "deploy_decision": deploy_decision,
-        "raw_data_gcs": f"gs://{bucket_name}/{base}/raw_data.csv",
-        "prepared_data_gcs": f"gs://{bucket_name}/{base}/prepared_data.csv",
-        "model_gcs": f"gs://{bucket_name}/{base}/model.joblib",
+        "Environment": env,
+        "RUN_ID": run_id,
+        "Published_At": datetime.now().isoformat(),
+        "Features": features,
+        "Deploy_Decision": deploy_decision,
+        "Accuracy": accuracy,
+        "F1": f1,
     }
     bucket.blob(f"{base}/metadata.json").upload_from_string(
         json.dumps(metadata, indent=2),
@@ -276,22 +287,21 @@ def register_model_op(
     from google.cloud import aiplatform
 
     aiplatform.init(project=project_id, location=location)
-    print(f"Registering model from: {model.path}")
-    print(f"display_name={display_name}, env={env}, run_id={run_id}")
 
     env_label = env.lower().replace("_", "-")[:63]
 
-    existing = aiplatform.Model.list(
+    # 1. Find existing model with same display name
+    models = aiplatform.Model.list(
         filter=f'display_name="{display_name}"',
         order_by="create_time desc",
     )
+    parent_model = models[0].resource_name if models else None
 
-    parent_model_name = existing[0].resource_name if existing else None
-    if parent_model_name:
-        print("Found parent model (creating new version):", parent_model_name)
-    else:
-        print("No parent model found (creating first model resource).")
+    print(f"Registering model from: {model.path}")
+    print(f"Display name: {display_name}")
+    print(f"Parent model: {parent_model or 'None (first version)'}")
 
+    # 2. Upload model (creates a new version if parent exists)
     uploaded_model = aiplatform.Model.upload(
         display_name=display_name,
         artifact_uri=model.path,
@@ -302,25 +312,27 @@ def register_model_op(
             "run_id": str(run_id)[:63],
             "model_type": "knn",
         },
-        parent_model=parent_model_name,
+        parent_model=parent_model,
         sync=True,
     )
 
-    payload = {
+    # 3. Save output details
+    metadata = {
         "vertex_model_resource_name": uploaded_model.resource_name,
         "display_name": display_name,
         "run_id": run_id,
         "env": env,
         "feature_set": feature_set,
         "artifact_uri": model.path,
-        "parent_model": parent_model_name,
+        "parent_model": parent_model,
     }
 
     with open(model_resource.path, "w") as f:
-        json.dump(payload, f, indent=2)
+        json.dump(metadata, f, indent=2)
 
-    model_resource.metadata.update(payload)
-    print("Model registered (model or version):", uploaded_model.resource_name)
+    model_resource.metadata.update(metadata)
+
+    print(f"Model registered: {uploaded_model.resource_name}")
 
 
 # Pipeline definition
@@ -339,6 +351,7 @@ def pipeline(
     p: int,
     metric: str = "minkowski",
 ):
+
     extract_task = extract_data_op(bucket_name=bucket_name)
     extract_task.set_caching_options(False)
 
@@ -369,7 +382,9 @@ def pipeline(
         bucket_name=bucket_name,
         env=env,
         run_id=run_id,
-        feature_set=feature_set,
+        features=feature_set,
+        accuracy=evaluate_task.outputs["accuracy"],
+        f1=evaluate_task.outputs["f1_score"],
         raw_data=extract_task.outputs["raw_data"],
         prepared_data=prepare_task.outputs["prepared_data"],
         model=train_task.outputs["model"],
