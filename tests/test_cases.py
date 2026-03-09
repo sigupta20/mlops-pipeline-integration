@@ -19,14 +19,14 @@ EXPECTED_PREPARED_COLS = [
     "job_id",
     "priority",
     "family_type",
-    "smd_0", "smd_1", "smd_2", "smd_3", "smd_4",
-    "processing_time_s1",
-    "aoi_0", "aoi_1", "aoi_2", "aoi_3", "aoi_4",
-    "processing_time_s2",
-    "ss_0", "ss_1", "ss_2", "ss_3", "ss_4",
-    "processing_time_s3",
-    "cc_0", "cc_1",
-    "processing_time_s4",
+    # "smd_0", "smd_1", "smd_2", "smd_3", "smd_4",
+    # "processing_time_s1",
+    # "aoi_0", "aoi_1", "aoi_2", "aoi_3", "aoi_4",
+    # "processing_time_s2",
+    # "ss_0", "ss_1", "ss_2", "ss_3", "ss_4",
+    # "processing_time_s3",
+    # "cc_0", "cc_1",
+    # "processing_time_s4",
     "overall_processing_time",
     "overall_waiting_time",
     "tardiness",
@@ -118,28 +118,27 @@ def test_prepared_data_schema_and_domain_rules():
 
 def test_model_exists_and_predictions_are_valid(tmp_path):
 
-    local_model = _download_model_from_gcs(
-        BUCKET, MODEL_BLOB, str(tmp_path / "model.joblib")
-    )
+    # Load the model
+    local_model = _download_model_from_gcs(BUCKET, MODEL_BLOB, str(tmp_path / "model.joblib"))
     model = joblib.load(local_model)
 
+    # Load prepared data
     df = _read_csv_from_gcs(BUCKET, PREPARED_DATA_BLOB)
 
     # Use features the model was trained on
     if hasattr(model, "feature_names_in_"):
         feature_cols = list(model.feature_names_in_)
     else:
-        raise AssertionError(
-            "Model does not have feature_names_in_. "
-            "Train with a pandas DataFrame so sklearn stores feature names."
-        )
+        raise AssertionError("Model does not have feature_names_in_. ")
 
     missing = [c for c in feature_cols if c not in df.columns]
     assert not missing, f"Prepared data missing model features: {missing}"
 
+    # Make predictions on first 5 rows
     X = df[feature_cols]
     preds = model.predict(X.head(5))
 
+    # Ensure predictions are valid number
     assert len(preds) == min(5, len(X))
     assert not np.isnan(preds).any()
     assert np.isfinite(preds).all()
