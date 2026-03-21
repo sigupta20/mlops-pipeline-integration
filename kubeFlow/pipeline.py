@@ -1,4 +1,4 @@
-from kfp import dsl
+from kfp import dsl, compiler
 from kfp.dsl import component, Dataset, Input, Output, Model, Metrics, Artifact
 from typing import NamedTuple
 BASE_IMAGE = "europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.1"
@@ -13,8 +13,8 @@ def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
 
     client = storage.Client()
     bucket = client.bucket(bucket_name)
+    
     dfs = []
-
     for blob in bucket.list_blobs():
         if blob.name.endswith("_breakdowns.csv"):
             df = pd.read_csv(io.BytesIO(blob.download_as_string()))
@@ -403,3 +403,9 @@ def pipeline(
             env=env,
         )
         register_task.set_caching_options(False)
+
+if __name__ == "__main__":
+    compiler.Compiler().compile(
+        pipeline_func=pipeline,
+        package_path="pipeline.yaml",
+    )
