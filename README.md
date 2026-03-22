@@ -6,8 +6,12 @@ gcloud auth login
 ## Documentation links:
 https://docs.cloud.google.com/kubernetes-engine/docs/tutorials/agentic-adk-vertex#standard
 https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning
+https://docs.cloud.google.com/vertex-ai/docs/pipelines/build-pipeline
 https://docs.cloud.google.com/vertex-ai/docs/pipelines/introduction
-
+https://console.cloud.google.com/artifacts/docker/cloud-builders/us/gcr.io
+https://console.cloud.google.com/artifacts/docker/mlops-pipeline-01/europe-west3/mlops-images
+https://docs.cloud.google.com/vertex-ai/docs/training/pre-built-containers#scikit-learn
+https://docs.cloud.google.com/build/docs/build-config-file-schema
 
 ## STEP 5 – Build & Push Image to Artifact Registry
 gcloud artifacts repositories create mlops-images \
