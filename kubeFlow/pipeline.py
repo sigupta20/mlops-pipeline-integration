@@ -1,11 +1,12 @@
 from kfp import dsl, compiler
 from kfp.dsl import component, Dataset, Input, Output, Model, Metrics, Artifact
 from typing import NamedTuple
+
 BASE_IMAGE = "europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.1.0"
 
 # Extract data component
 @component(base_image=BASE_IMAGE)
-def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
+def extract_data_op(bucket_name: str, env: str, raw_data: Output[Dataset]):
     import pandas as pd
     from google.cloud import storage
     import io
@@ -13,7 +14,7 @@ def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
 
     client = storage.Client()
     bucket = client.bucket(bucket_name)
-    
+
     dfs = []
     for blob in bucket.list_blobs():
         if blob.name.endswith("_breakdowns.csv"):
@@ -24,23 +25,31 @@ def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
     if not dfs:
         raise RuntimeError("No valid CSV files found")
 
-    # Merge all DataFrames into a single DataFrame and store data to CSV
     os.makedirs(raw_data.path, exist_ok=True)
     output_path = os.path.join(raw_data.path, "raw_data.csv")
     pd.concat(dfs, ignore_index=True).to_csv(output_path, index=False)
     print(f"Raw data written to {output_path}")
 
+    #Upload artifact for testing and model deployment
+    base = f"artifacts/{env}/latest"
+    bucket.blob(f"{base}/raw_data.csv").upload_from_filename(output_path)
+    print(f"Raw data published to gs://{bucket_name}/{base}/raw_data.csv")
+
 
 # Prepare data component
 @component(base_image=BASE_IMAGE)
-def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
+def prepare_data_op(
+    bucket_name: str,
+    env: str,
+    raw_data: Input[Dataset],
+    prepared_data: Output[Dataset],
+):
     import pandas as pd
     import os
+    from google.cloud import storage
 
-    # 1. Load raw data and store to dataframe
     df = pd.read_csv(os.path.join(raw_data.path, "raw_data.csv"))
 
-    # 2. Row-wise feature engineering, _ means implies this value is not used
     prepared_rows = []
     for _, row in df.iterrows():
         first_stage = row["First_stage"]
@@ -49,12 +58,10 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
         fourth_stage = row["Fourth_stage"]
 
         prepared_rows.append({
-            # Identifiers / metadata
             "job_id": row["ID"],
             "priority": row["Priority"],
             "family_type": row["Family_type"],
 
-            # First stage (SMD)
             "smd_0": int(first_stage == "SMD_0"),
             "smd_1": int(first_stage == "SMD_1"),
             "smd_2": int(first_stage == "SMD_2"),
@@ -62,7 +69,6 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
             "smd_4": int(first_stage == "SMD_4"),
             "processing_time_s1": float(row["Processing_Time_S1"]),
 
-            # Second stage (AOI)
             "aoi_0": int(second_stage == "AOI_0"),
             "aoi_1": int(second_stage == "AOI_1"),
             "aoi_2": int(second_stage == "AOI_2"),
@@ -70,7 +76,6 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
             "aoi_4": int(second_stage == "AOI_4"),
             "processing_time_s2": float(row["Processing_Time_S2"]),
 
-            # Third stage (SS)
             "ss_0": int(third_stage == "SS_0"),
             "ss_1": int(third_stage == "SS_1"),
             "ss_2": int(third_stage == "SS_2"),
@@ -78,7 +83,6 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
             "ss_4": int(third_stage == "SS_4"),
             "processing_time_s3": float(row["Processing_Time_S3"]),
 
-            # Fourth stage (CC)
             "cc_0": int(fourth_stage == "CC_0"),
             "cc_1": int(fourth_stage == "CC_1"),
             "processing_time_s4": float(row["Processing_Time_S4"]),
@@ -86,19 +90,27 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
             "overall_processing_time": float(row["Overall_processing_time"]),
             "overall_waiting_time": float(row["Overall_waiting_time"]),
             "tardiness": float(row["Tardiness"]),
-            "breaks": int(row["BREAKS"])
+            "breaks": int(row["BREAKS"]),
         })
 
-    # 3. Save prepared dataset
     output_path = os.path.join(prepared_data.path, "prepared_data.csv")
     os.makedirs(prepared_data.path, exist_ok=True)
     pd.DataFrame(prepared_rows).to_csv(output_path, index=False)
     print(f"Prepared data written to: {output_path}")
 
+    #Upload artifact for testing and model deployment
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    base = f"artifacts/{env}/latest"
+    bucket.blob(f"{base}/prepared_data.csv").upload_from_filename(output_path)
+    print(f"Prepared data published to gs://{bucket_name}/{base}/prepared_data.csv")
+
 
 # Train model component
 @component(base_image=BASE_IMAGE)
 def train_model_op(
+    bucket_name: str,
+    env: str,
     prepared_data: Input[Dataset],
     model: Output[Model],
     feature_set: str,
@@ -110,38 +122,36 @@ def train_model_op(
     import pandas as pd
     import joblib
     import os
+    from google.cloud import storage
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
-     
-    # features set
+
     features = [c.strip() for c in feature_set.split(",")]
 
-    # Load data
     df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"), usecols=features)
 
-    # Target variable
     target = "breaks"
-
-    # Define features and separate target
     X = df.drop(columns=[target])
     y = df[target]
 
-    # Split into Training and Test dataset
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=52
+    )
 
-    # Train model
-    knn_model = KNeighborsClassifier(n_neighbors=n_neighbors,weights=weights,metric=metric,p=p)
+    knn_model = KNeighborsClassifier(
+        n_neighbors=n_neighbors,
+        weights=weights,
+        metric=metric,
+        p=p,
+    )
     knn_model.fit(X_train, y_train)
 
-    # Predict using test dataset
     y_pred = knn_model.predict(X_test)
 
-    # convert labels into binary format: [0,1]
     y_test_binary = (y_test != 0).astype(int)
     y_pred_binary = (y_pred != 0).astype(int)
 
-    # Calculate Accuracy and F1
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
@@ -151,19 +161,27 @@ def train_model_op(
     print(f"Features Set: {features}")
 
     os.makedirs(model.path, exist_ok=True)
-    joblib.dump(knn_model, os.path.join(model.path, "model.joblib"))
-    print(f"Model saved at {os.path.join(model.path, 'model.joblib')}")
+    model_path = os.path.join(model.path, "model.joblib")
+    joblib.dump(knn_model, model_path)
+    print(f"Model saved at {model_path}")
+
+    #Upload artifact for testing and model deployment
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    base = f"artifacts/{env}/latest"
+    bucket.blob(f"{base}/model.joblib").upload_from_filename(model_path)
+    print(f"Model published to gs://{bucket_name}/{base}/model.joblib")
 
 
 # Evaluate model component
 @component(base_image=BASE_IMAGE)
 def evaluate_model_op(
+    bucket_name: str,
     model: Input[Model],
     prepared_data: Input[Dataset],
     metrics: Output[Metrics],
     feature_set: str,
     f1_threshold: float,
-    run_id: str,
     env: str,
 ) -> NamedTuple("Outputs", [
     ("deploy_decision", str),
@@ -171,94 +189,52 @@ def evaluate_model_op(
     ("f1_score", float),
 ]):
     import os
+    import json
     import pandas as pd
     import joblib
+    from datetime import datetime
+    from google.cloud import storage
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
 
-    # features set
     features = [c.strip() for c in feature_set.split(",")]
 
-    # Load data
-    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"),usecols=features)
+    df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"), usecols=features)
 
     X = df.drop(columns=["breaks"])
     y = df["breaks"]
 
-    # Split data into test and training data
     _, X_test, _, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
 
-    # Load model
     loaded_model = joblib.load(os.path.join(model.path, "model.joblib"))
-
-    # Predict using test dataset
     y_pred = loaded_model.predict(X_test)
 
-    # convert labels into binary format: [0,1]
     y_test_binary = (y_test != 0).astype(int)
     y_pred_binary = (y_pred != 0).astype(int)
 
-    # Evaluate model
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
-    # Store metadata to the experiments
     metrics.log_metric("accuracy", accuracy)
     metrics.log_metric("f1", f1)
     metrics.log_metric("num_features", X.shape[1])
     metrics.metadata["environment"] = env
     metrics.metadata["features"] = feature_set
-    metrics.metadata["run_id"] = run_id
     metrics.metadata["model_type"] = "knn"
 
-    print(f'Accuracy: {accuracy}')
-    print(f'F1: {f1}')
+    print(f"Accuracy: {accuracy}")
+    print(f"F1: {f1}")
 
-    if f1 < f1_threshold:
-        raise ValueError(
-            f"Model rejected: f1_score_binary={f1:.4f} is below threshold={f1_threshold:.4f}"
-        )
-
-    return ("true" if f1 >= f1_threshold else "false", accuracy, f1)
-
-
-# Publish artifacts component
-@component(base_image=BASE_IMAGE)
-def publish_artifacts_op(
-    bucket_name: str,
-    env: str,
-    run_id: str,
-    features: str,
-    accuracy: float,
-    f1: float,
-    raw_data: Input[Dataset],
-    prepared_data: Input[Dataset],
-    model: Input[Model],
-    deploy_decision: str,
-):
-    import os
-    import json
-    from datetime import datetime, timezone
-    from google.cloud import storage
+    deploy_decision = "true" if f1 >= f1_threshold else "false"
 
     client = storage.Client()
     bucket = client.bucket(bucket_name)
-
-    raw_path = os.path.join(raw_data.path, "raw_data.csv")
-    prepared_path = os.path.join(prepared_data.path, "prepared_data.csv")
-    model_path = os.path.join(model.path, "model.joblib")
-
     base = f"artifacts/{env}/latest"
-
-    bucket.blob(f"{base}/raw_data.csv").upload_from_filename(raw_path)
-    bucket.blob(f"{base}/prepared_data.csv").upload_from_filename(prepared_path)
-    bucket.blob(f"{base}/model.joblib").upload_from_filename(model_path)
 
     metadata = {
         "Environment": env,
-        "RUN_ID": run_id,
         "Published_At": datetime.now().isoformat(),
-        "Features": features,
+        "Features": feature_set,
         "Deploy_Decision": deploy_decision,
         "Accuracy": accuracy,
         "F1": f1,
@@ -267,8 +243,14 @@ def publish_artifacts_op(
         json.dumps(metadata, indent=2),
         content_type="application/json",
     )
+    print(f"Metadata published to gs://{bucket_name}/{base}/metadata.json")
 
-    print(f"Published artifacts to gs://{bucket_name}/{base}/")
+    if f1 < f1_threshold:
+        raise ValueError(
+            f"Model rejected: f1_score_binary={f1} is below threshold={f1_threshold}"
+        )
+
+    return (deploy_decision, accuracy, f1)
 
 
 # Register model to Model Registry
@@ -279,7 +261,6 @@ def register_model_op(
     model: Input[Model],
     display_name: str,
     feature_set: str,
-    run_id: str,
     env: str,
     model_resource: Output[Artifact],
 ):
@@ -290,7 +271,6 @@ def register_model_op(
 
     env_label = env.lower().replace("_", "-")[:63]
 
-    # 1. Find existing model with same display name
     models = aiplatform.Model.list(
         filter=f'display_name="{display_name}"',
         order_by="create_time desc",
@@ -301,26 +281,22 @@ def register_model_op(
     print(f"Display name: {display_name}")
     print(f"Parent model: {parent_model or 'None (first version)'}")
 
-    # 2. Upload model (creates a new version if parent exists)
     uploaded_model = aiplatform.Model.upload(
         display_name=display_name,
         artifact_uri=model.path,
         serving_container_image_uri="europe-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
-        description=f"env={env}; run_id={run_id}; feature_set={feature_set}",
+        description=f"env={env}; feature_set={feature_set}",
         labels={
             "env": env_label,
-            "run_id": str(run_id)[:63],
             "model_type": "knn",
         },
         parent_model=parent_model,
         sync=True,
     )
 
-    # 3. Save output details
     metadata = {
         "vertex_model_resource_name": uploaded_model.resource_name,
         "display_name": display_name,
-        "run_id": run_id,
         "env": env,
         "feature_set": feature_set,
         "artifact_uri": model.path,
@@ -342,7 +318,6 @@ def pipeline(
     location: str,
     bucket_name: str,
     env: str,
-    run_id: str,
     model_display_name: str,
     f1_threshold: float,
     feature_set: str,
@@ -351,14 +326,19 @@ def pipeline(
     p: int,
     metric: str = "minkowski",
 ):
-
-    extract_task = extract_data_op(bucket_name=bucket_name)
+    extract_task = extract_data_op(bucket_name=bucket_name, env=env)
     extract_task.set_caching_options(False)
 
-    prepare_task = prepare_data_op(raw_data=extract_task.outputs["raw_data"])
+    prepare_task = prepare_data_op(
+        bucket_name=bucket_name,
+        env=env,
+        raw_data=extract_task.outputs["raw_data"],
+    )
     prepare_task.set_caching_options(False)
 
     train_task = train_model_op(
+        bucket_name=bucket_name,
+        env=env,
         prepared_data=prepare_task.outputs["prepared_data"],
         feature_set=feature_set,
         n_neighbors=n_neighbors,
@@ -369,28 +349,14 @@ def pipeline(
     train_task.set_caching_options(False)
 
     evaluate_task = evaluate_model_op(
+        bucket_name=bucket_name,
         model=train_task.outputs["model"],
         prepared_data=prepare_task.outputs["prepared_data"],
         feature_set=feature_set,
         f1_threshold=f1_threshold,
-        run_id=run_id,
         env=env,
     )
     evaluate_task.set_caching_options(False)
-
-    publish_task = publish_artifacts_op(
-        bucket_name=bucket_name,
-        env=env,
-        run_id=run_id,
-        features=feature_set,
-        accuracy=evaluate_task.outputs["accuracy"],
-        f1=evaluate_task.outputs["f1_score"],
-        raw_data=extract_task.outputs["raw_data"],
-        prepared_data=prepare_task.outputs["prepared_data"],
-        model=train_task.outputs["model"],
-        deploy_decision=evaluate_task.outputs["deploy_decision"],
-    )
-    publish_task.set_caching_options(False)
 
     with dsl.If(evaluate_task.outputs["deploy_decision"] == "true"):
         register_task = register_model_op(
@@ -399,10 +365,10 @@ def pipeline(
             model=train_task.outputs["model"],
             display_name=model_display_name,
             feature_set=feature_set,
-            run_id=run_id,
             env=env,
         )
         register_task.set_caching_options(False)
+
 
 if __name__ == "__main__":
     compiler.Compiler().compile(

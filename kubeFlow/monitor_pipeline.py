@@ -104,15 +104,10 @@ def trigger_new_run_op(
     print(f"F1 score {f1_score:.4f} is below threshold. Triggering Cloud Build.")
 
     cmd = [
-        "gcloud",
-        "builds",
-        "triggers",
-        "run",
-        trigger_id,
-        "--region",
-        location,
-        "--project",
-        project_id,
+        "gcloud", "builds", "triggers",
+        "run", trigger_id,
+        "--region", location,
+        "--project", project_id,
     ]
 
     subprocess.run(cmd, check=True)

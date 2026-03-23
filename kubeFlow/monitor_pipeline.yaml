@@ -135,20 +135,17 @@ deploymentSpec:
           \ float,\n) -> NamedTuple(\"Outputs\", [(\"retrain_decision\", str), (\"\
           f1_score\", float)]):\n    import os\n    import joblib\n    import pandas\
           \ as pd\n    from google.cloud import storage\n    from sklearn.model_selection\
-          \ import train_test_split\n    from sklearn.metrics import accuracy_score,\
-          \ f1_score\n\n\n    # Load model from GCS latest path\n    client = storage.Client()\n\
-          \    path = \"/tmp/model.joblib\"\n    client.bucket(bucket_name).blob(f\"\
+          \ import train_test_split\n    from sklearn.metrics import f1_score\n\n\
+          \    client = storage.Client()\n    path = \"/tmp/model.joblib\"\n    client.bucket(bucket_name).blob(f\"\
           artifacts/{env}/latest/model.joblib\").download_to_filename(path)\n    model\
-          \ = joblib.load(path)\n\n    # Load prepared monitoring data\n    features\
-          \ = [c.strip() for c in feature_set.split(\",\")]\n    df = pd.read_csv(os.path.join(prepared_data.path,\
-          \ \"prepared_data.csv\"),usecols=features)\n\n    X = df.drop(columns=[\"\
-          breaks\"])\n    y = df[\"breaks\"]\n\n    _, X_test, _, y_test = train_test_split(X,\
-          \ y, test_size=0.3, random_state=52)\n    # Predict and calculate binary\
-          \ F1\n    y_pred = model.predict(X_test)\n    # convert labels into binary\
-          \ format: [0,1]\n    y_test_binary = (y_test != 0).astype(int)\n    y_pred_binary\
-          \ = (y_pred != 0).astype(int)\n\n    accuracy = accuracy_score(y_test, y_pred)\n\
-          \    f1 = f1_score(y_test_binary, y_pred_binary, average=\"binary\")\n\n\
-          \    return (\"true\" if f1 < f1_threshold else \"false\", f1)\n\n"
+          \ = joblib.load(path)\n\n    features = [c.strip() for c in feature_set.split(\"\
+          ,\")]\n    df = pd.read_csv(os.path.join(prepared_data.path, \"prepared_data.csv\"\
+          ),usecols=features)\n\n    X_test = df.drop(columns=[\"breaks\"])\n    y_test\
+          \ = df[\"breaks\"]\n\n    y_pred = model.predict(X_test)\n\n    y_test_binary\
+          \ = (y_test != 0).astype(int)\n    y_pred_binary = (y_pred != 0).astype(int)\n\
+          \n    f1 = f1_score(y_test_binary, y_pred_binary, average=\"binary\", zero_division=0)\n\
+          \n    return (\"true\" if f1 < f1_threshold else \"false\", float(f1))\n\
+          \n"
         image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.1.0
     exec-extract-data-op:
       container:
@@ -255,11 +252,10 @@ deploymentSpec:
           \ *\n\ndef trigger_new_run_op(\n    project_id: str,\n    location: str,\n\
           \    f1_score: float,\n    trigger_id: str,\n):\n    import subprocess\n\
           \n    print(f\"F1 score {f1_score:.4f} is below threshold. Triggering Cloud\
-          \ Build.\")\n\n    cmd = [\n        \"gcloud\",\n        \"builds\",\n \
-          \       \"triggers\",\n        \"run\",\n        trigger_id,\n        \"\
-          --region\",\n        location,\n        \"--project\",\n        project_id,\n\
-          \    ]\n\n    subprocess.run(cmd, check=True)\n    print(\"Cloud Build trigger\
-          \ started successfully.\")\n\n"
+          \ Build.\")\n\n    cmd = [\n        \"gcloud\", \"builds\", \"triggers\"\
+          ,\n        \"run\", trigger_id,\n        \"--region\", location,\n     \
+          \   \"--project\", project_id,\n    ]\n\n    subprocess.run(cmd, check=True)\n\
+          \    print(\"Cloud Build trigger started successfully.\")\n\n"
         image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.1.0
 pipelineInfo:
   description: Evaluate latest registered model on new labeled data and trigger retraining
