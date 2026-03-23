@@ -3,8 +3,8 @@ import streamlit as st
 from google.cloud import storage
 from app.predictor import Predictor, FEATURE_COLUMNS
 
-st.set_page_config(page_title="Manufacturing Breakdown Predictor")
-st.title("Manufacturing Breakdown Predictor")
+st.set_page_config(page_title="Manufacturing Anomaly Detection")
+st.title("Manufacturing Anomaly Detection")
 
 MODEL_BUCKET = os.getenv("MODEL_BUCKET")
 MODEL_GCS_PATH = os.getenv("MODEL_GCS_PATH")

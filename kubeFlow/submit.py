@@ -4,13 +4,12 @@ from google.cloud import aiplatform
 from google.cloud.aiplatform.pipeline_jobs import PipelineJob
 
 ENV = os.getenv("ENV", "dev")
-RUN_ID = str(int(time.time()))
 PROJECT_ID = "mlops-pipeline-01"
 REGION = "europe-west1"
 BUCKET_NAME = "mlops-pipeline-01"
 
-PIPELINE_ROOT = f"gs://{BUCKET_NAME}/pipelines/{ENV}/{RUN_ID}"
-DISPLAY_NAME = f"mlops-pipeline-{ENV}-{RUN_ID}"
+PIPELINE_ROOT = f"gs://{BUCKET_NAME}/pipelines/{ENV}"
+DISPLAY_NAME = f"mlops-pipeline-{ENV}"
 TEMPLATE_PATH = "pipeline.yaml"
 
 # List of features
@@ -33,7 +32,6 @@ PIPELINE_PARAMS = {
     "project_id": PROJECT_ID,
     "location": REGION,
     "env": ENV,
-    "run_id": RUN_ID,
     "bucket_name": BUCKET_NAME,
     "model_display_name": f"mlops-model-{ENV}",
     "feature_set": ",".join(FEATURES),
