@@ -192,3 +192,10 @@ gcloud run deploy knn-streamlit \
   --allow-unauthenticated \
   --set-env-vars MODEL_BUCKET=your-bucket-name,MODEL_GCS_PATH=dev/model/model.joblib
 
+## deploy notifier
+gcloud run deploy cloud-build-smtp-notifier \
+  --image=us-east1-docker.pkg.dev/gcb-release/cloud-build-notifiers/smtp:latest \
+  --no-allow-unauthenticated \
+  --region=europe-west1 \
+  --project=mlops-pipeline-01 \
+  --update-env-vars=CONFIG_PATH=gs://mlops-pipeline-01-notifiers/smtp-notifier.yaml,PROJECT_ID=mlops-pipeline-01
