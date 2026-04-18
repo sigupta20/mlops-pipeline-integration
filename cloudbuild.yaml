@@ -2,8 +2,8 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 substitutions:
-  _MLOPS_BUILD_IMAGE: 'europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.1.0'
-  _STREAMLIT_IMAGE: 'europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-images/mlops-streamlit'
+  _MLOPS_BUILD_IMAGE: 'europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.1.0'
+  _STREAMLIT_IMAGE: 'europe-west1-docker.pkg.dev/mlops-241257/mlops-images/mlops-streamlit'
   _DOCKER_IMAGE: 'gcr.io/cloud-builders/docker'
 
 steps:
