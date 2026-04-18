@@ -4,9 +4,9 @@ from google.cloud import aiplatform
 from google.cloud.aiplatform.pipeline_jobs import PipelineJob
 
 ENV = "prod"
-PROJECT_ID = "mlops-pipeline-01"
+PROJECT_ID = "mlops-241257"
 REGION = "europe-west1"
-BUCKET_NAME = "mlops-pipeline-01"
+BUCKET_NAME = "mlops-241257"
 # Cloud Build trigger ID
 TRIGGER_ID = "9fd79cf3-7464-4ed8-9290-523e3e88162e"
 PIPELINE_ROOT = f"gs://{BUCKET_NAME}/monitoring-pipelines/{ENV}"

@@ -2,7 +2,7 @@ from kfp import dsl, compiler
 from kfp.dsl import component, Dataset, Input, Output
 from typing import NamedTuple
 
-BASE_IMAGE = "europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.1.0"
+BASE_IMAGE = "europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.1.0"
 
 
 # Extract data component

@@ -6,7 +6,7 @@ import joblib
 from google.cloud import storage
 
 
-BUCKET = "mlops-pipeline-01"
+BUCKET = "mlops-241257"
 ENV = os.getenv("ENV", "dev")
 
 BASE = f"artifacts/{ENV}/latest"
