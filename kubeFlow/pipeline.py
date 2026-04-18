@@ -15,8 +15,9 @@ def extract_data_op(bucket_name: str, env: str, raw_data: Output[Dataset]):
     client = storage.Client()
     bucket = client.bucket(bucket_name)
 
+    # Read all valid breakdown CSV files from the bucket and collect only files containing the BREAKS column
     dfs = []
-    for blob in bucket.list_blobs():
+    for blob in bucket.list_blobs(prefix="data/"):
         if blob.name.endswith("_breakdowns.csv"):
             df = pd.read_csv(io.BytesIO(blob.download_as_string()))
             if "BREAKS" in df.columns:
@@ -25,6 +26,7 @@ def extract_data_op(bucket_name: str, env: str, raw_data: Output[Dataset]):
     if not dfs:
         raise RuntimeError("No valid CSV files found")
 
+    # Merge all dataframes and save as raw_data.csv
     os.makedirs(raw_data.path, exist_ok=True)
     output_path = os.path.join(raw_data.path, "raw_data.csv")
     pd.concat(dfs, ignore_index=True).to_csv(output_path, index=False)
@@ -38,18 +40,15 @@ def extract_data_op(bucket_name: str, env: str, raw_data: Output[Dataset]):
 
 # Prepare data component
 @component(base_image=BASE_IMAGE)
-def prepare_data_op(
-    bucket_name: str,
-    env: str,
-    raw_data: Input[Dataset],
-    prepared_data: Output[Dataset],
-):
+def prepare_data_op(bucket_name: str, env: str, raw_data: Input[Dataset], prepared_data: Output[Dataset]):
     import pandas as pd
     import os
     from google.cloud import storage
 
+    # Read raw_data.csv and store in a DataFrame
     df = pd.read_csv(os.path.join(raw_data.path, "raw_data.csv"))
 
+    # Row-wise feature engineering (one-hot-encoding), _ means implies this value is not used
     prepared_rows = []
     for _, row in df.iterrows():
         first_stage = row["First_stage"]
@@ -58,10 +57,12 @@ def prepare_data_op(
         fourth_stage = row["Fourth_stage"]
 
         prepared_rows.append({
+            # Identifiers / metadata
             "job_id": row["ID"],
             "priority": row["Priority"],
             "family_type": row["Family_type"],
 
+            # First stage (SMD)
             "smd_0": int(first_stage == "SMD_0"),
             "smd_1": int(first_stage == "SMD_1"),
             "smd_2": int(first_stage == "SMD_2"),
@@ -69,6 +70,7 @@ def prepare_data_op(
             "smd_4": int(first_stage == "SMD_4"),
             "processing_time_s1": float(row["Processing_Time_S1"]),
 
+            # Second stage (AOI)
             "aoi_0": int(second_stage == "AOI_0"),
             "aoi_1": int(second_stage == "AOI_1"),
             "aoi_2": int(second_stage == "AOI_2"),
@@ -76,6 +78,7 @@ def prepare_data_op(
             "aoi_4": int(second_stage == "AOI_4"),
             "processing_time_s2": float(row["Processing_Time_S2"]),
 
+            # Third stage (SS)
             "ss_0": int(third_stage == "SS_0"),
             "ss_1": int(third_stage == "SS_1"),
             "ss_2": int(third_stage == "SS_2"),
@@ -83,6 +86,7 @@ def prepare_data_op(
             "ss_4": int(third_stage == "SS_4"),
             "processing_time_s3": float(row["Processing_Time_S3"]),
 
+            # Fourth stage (CC)
             "cc_0": int(fourth_stage == "CC_0"),
             "cc_1": int(fourth_stage == "CC_1"),
             "processing_time_s4": float(row["Processing_Time_S4"]),
@@ -93,6 +97,7 @@ def prepare_data_op(
             "breaks": int(row["BREAKS"]),
         })
 
+    # Save prepared dataset into prepared_data.csv
     output_path = os.path.join(prepared_data.path, "prepared_data.csv")
     os.makedirs(prepared_data.path, exist_ok=True)
     pd.DataFrame(prepared_rows).to_csv(output_path, index=False)
@@ -109,15 +114,8 @@ def prepare_data_op(
 # Train model component
 @component(base_image=BASE_IMAGE)
 def train_model_op(
-    bucket_name: str,
-    env: str,
-    prepared_data: Input[Dataset],
-    model: Output[Model],
-    feature_set: str,
-    n_neighbors: int,
-    weights: str,
-    p: int,
-    metric: str,
+    bucket_name: str, env: str,prepared_data: Input[Dataset], model: Output[Model],
+    feature_set: str, n_neighbors: int,metric: str, p: int,
 ):
     import pandas as pd
     import joblib
@@ -126,40 +124,43 @@ def train_model_op(
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
-
+    
     features = [c.strip() for c in feature_set.split(",")]
 
+    # Read prepared_data.csv and store in a DataFrame
     df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"), usecols=features)
 
+    # Target attribute: breaks
     target = "breaks"
-    X = df.drop(columns=[target])
+
+    # Define features and target attribute
+    X = df.drop(columns=[target], axis=1)
     y = df[target]
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=52
-    )
+    # Split into Training and Test dataset
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
 
-    knn_model = KNeighborsClassifier(
-        n_neighbors=n_neighbors,
-        weights=weights,
-        metric=metric,
-        p=p,
-    )
+    # Train model
+    knn_model = KNeighborsClassifier(n_neighbors=n_neighbors,metric=metric,p=p)
     knn_model.fit(X_train, y_train)
 
+    # Predict using test dataset
     y_pred = knn_model.predict(X_test)
 
+    # convert labels into binary format: [0,1]
     y_test_binary = (y_test != 0).astype(int)
     y_pred_binary = (y_pred != 0).astype(int)
 
+    # Evaluate model
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
-    print(f"Accuracy: {accuracy}")
-    print(f"F1 (binary): {f1}")
-    print(f"Hyperparameters: n_neighbors={n_neighbors}, weights={weights}, metric={metric}, p={p}")
-    print(f"Features Set: {features}")
+    # print(f"Accuracy: {accuracy}")
+    # print(f"F1 (binary): {f1}")
+    # print(f"Hyperparameters: n_neighbors={n_neighbors}, weights={weights}, metric={metric}, p={p}")
+    # print(f"Features Set: {features}")
 
+    # Save model locally to be used in next stage
     os.makedirs(model.path, exist_ok=True)
     model_path = os.path.join(model.path, "model.joblib")
     joblib.dump(knn_model, model_path)
@@ -176,18 +177,10 @@ def train_model_op(
 # Evaluate model component
 @component(base_image=BASE_IMAGE)
 def evaluate_model_op(
-    bucket_name: str,
-    model: Input[Model],
-    prepared_data: Input[Dataset],
-    metrics: Output[Metrics],
-    feature_set: str,
-    f1_threshold: float,
-    env: str,
-) -> NamedTuple("Outputs", [
-    ("deploy_decision", str),
-    ("accuracy", float),
-    ("f1_score", float),
-]):
+    bucket_name: str,model: Input[Model],prepared_data: Input[Dataset],metrics: Output[Metrics],
+    feature_set: str,f1_threshold: float,env: str,
+) -> NamedTuple("Outputs", [("deploy_decision", str),("accuracy", float),("f1_score", float),]):
+
     import os
     import json
     import pandas as pd
@@ -201,20 +194,24 @@ def evaluate_model_op(
 
     df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"), usecols=features)
 
-    X = df.drop(columns=["breaks"])
+    X = df.drop(columns=["breaks"], axis=1)
     y = df["breaks"]
 
     _, X_test, _, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
 
+    # Load model from previous stage and predict using test dataset
     loaded_model = joblib.load(os.path.join(model.path, "model.joblib"))
     y_pred = loaded_model.predict(X_test)
 
+    # convert labels into binary format: [0,1]
     y_test_binary = (y_test != 0).astype(int)
     y_pred_binary = (y_pred != 0).astype(int)
 
+    # Evaluate model
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
+    # Log pipeline metrics as metadata
     metrics.log_metric("accuracy", accuracy)
     metrics.log_metric("f1", f1)
     metrics.log_metric("num_features", X.shape[1])
@@ -222,8 +219,8 @@ def evaluate_model_op(
     metrics.metadata["features"] = feature_set
     metrics.metadata["model_type"] = "knn"
 
-    print(f"Accuracy: {accuracy}")
-    print(f"F1: {f1}")
+    # print(f"Accuracy: {accuracy}")
+    # print(f"F1: {f1}")
 
     deploy_decision = "true" if f1 >= f1_threshold else "false"
 
@@ -245,6 +242,7 @@ def evaluate_model_op(
     )
     print(f"Metadata published to gs://{bucket_name}/{base}/metadata.json")
 
+    # Pipeline will fail with error if threshold below 90%
     if f1 < f1_threshold:
         raise ValueError(
             f"Model rejected: f1_score_binary={f1} is below threshold={f1_threshold}"
@@ -256,31 +254,33 @@ def evaluate_model_op(
 # Register model to Model Registry
 @component(base_image=BASE_IMAGE)
 def register_model_op(
-    project_id: str,
-    location: str,
-    model: Input[Model],
-    display_name: str,
-    feature_set: str,
-    env: str,
-    model_resource: Output[Artifact],
-):
+    project_id: str,location: str,
+    model: Input[Model],model_resource: Output[Artifact],
+    display_name: str,feature_set: str,env: str,
+    ):
     import json
     from google.cloud import aiplatform
 
+    # Initialize Vertex AI client
     aiplatform.init(project=project_id, location=location)
 
+    # Format env value so it can be used as a valid label
     env_label = env.lower().replace("_", "-")[:63]
 
+    # Verify whether a model with the same display name already exists
     models = aiplatform.Model.list(
         filter=f'display_name="{display_name}"',
         order_by="create_time desc",
     )
+    # Use latest existing model as parent to create a new version
     parent_model = models[0].resource_name if models else None
 
+    # Print basic registration details for logging
     print(f"Registering model from: {model.path}")
     print(f"Display name: {display_name}")
     print(f"Parent model: {parent_model or 'None (first version)'}")
 
+    # Upload model artifact to Vertex AI Model Registry
     uploaded_model = aiplatform.Model.upload(
         display_name=display_name,
         artifact_uri=model.path,
@@ -294,6 +294,7 @@ def register_model_op(
         sync=True,
     )
 
+    # Store important model registration details as metadata
     metadata = {
         "vertex_model_resource_name": uploaded_model.resource_name,
         "display_name": display_name,
@@ -303,11 +304,12 @@ def register_model_op(
         "parent_model": parent_model,
     }
 
+    # Write metadata to the output artifact file
     with open(model_resource.path, "w") as f:
         json.dump(metadata, f, indent=2)
 
+    # Attach metadata to the output artifact for pipeline tracking
     model_resource.metadata.update(metadata)
-
     print(f"Model registered: {uploaded_model.resource_name}")
 
 
@@ -322,7 +324,6 @@ def pipeline(
     f1_threshold: float,
     feature_set: str,
     n_neighbors: int,
-    weights: str,
     p: int,
     metric: str = "minkowski",
 ):
@@ -342,7 +343,6 @@ def pipeline(
         prepared_data=prepare_task.outputs["prepared_data"],
         feature_set=feature_set,
         n_neighbors=n_neighbors,
-        weights=weights,
         p=p,
         metric=metric,
     )
