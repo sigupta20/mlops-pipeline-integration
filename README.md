@@ -4,7 +4,6 @@ gcloud config set project mlops-241257
 gcloud auth application-default login
 gcloud auth login
 
-test
 ## Documentation links:
 https://docs.cloud.google.com/kubernetes-engine/docs/tutorials/agentic-adk-vertex#standard
 https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning
