@@ -38,7 +38,6 @@ PIPELINE_PARAMS = {
     "f1_threshold": 0.80,
     # Model hyperparameters
     "n_neighbors": 5,
-    "weights": "distance",
     "p": 2,
     "metric": "minkowski",
 }

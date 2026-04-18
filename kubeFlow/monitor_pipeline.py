@@ -16,8 +16,9 @@ def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
     client = storage.Client()
     bucket = client.bucket(bucket_name)
 
+    # Read all valid breakdown CSV files from the bucket and collect only files containing the BREAKS column
     dfs = []
-    for blob in bucket.list_blobs():
+    for blob in bucket.list_blobs(prefix="data/"):
         if blob.name.endswith("_breakdowns.csv"):
             df = pd.read_csv(io.BytesIO(blob.download_as_string()))
             if "BREAKS" in df.columns:
@@ -26,6 +27,7 @@ def extract_data_op(bucket_name: str, raw_data: Output[Dataset]):
     if not dfs:
         raise RuntimeError("No valid CSV files found")
 
+    # Merge all dataframes and save as raw_data.csv
     output_path = os.path.join(raw_data.path, "raw_data.csv")
     os.makedirs(raw_data.path, exist_ok=True)
     pd.concat(dfs, ignore_index=True).to_csv(output_path, index=False)
@@ -37,8 +39,10 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
     import pandas as pd
     import os
 
+    # Read raw_data.csv and store in a DataFrame
     df = pd.read_csv(os.path.join(raw_data.path, "raw_data.csv"))
 
+    # Extract selected columns from each row and build the prepared dataset
     prepared_rows = []
     for _, row in df.iterrows():
         prepared_rows.append({
@@ -51,6 +55,7 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
             "breaks": int(row["BREAKS"]),
         })
 
+    # Save prepared dataset into prepared_data.csv
     output_path = os.path.join(prepared_data.path, "prepared_data.csv")
     os.makedirs(prepared_data.path, exist_ok=True)
     pd.DataFrame(prepared_rows).to_csv(output_path, index=False)
@@ -58,12 +63,9 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 # Evaluate data component
 @component(base_image=BASE_IMAGE)
 def evaluate_data_op(
-    bucket_name: str,
-    env: str,
-    prepared_data: Input[Dataset],
-    feature_set: str,
-    f1_threshold: float,
+    bucket_name: str,env: str,prepared_data: Input[Dataset],feature_set: str,f1_threshold: float,
 ) -> NamedTuple("Outputs", [("retrain_decision", str), ("f1_score", float)]):
+
     import os
     import joblib
     import pandas as pd
@@ -71,15 +73,19 @@ def evaluate_data_op(
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import f1_score
 
+    # Initialize GCS client
     client = storage.Client()
     path = "/tmp/model.joblib"
     client.bucket(bucket_name).blob(f"artifacts/{env}/latest/model.joblib").download_to_filename(path)
-    model = joblib.load(path)
 
+    # Load the trained model from the downloaded file
+    model = joblib.load(path)
+ 
+    # Parse the selected feature columns
     features = [c.strip() for c in feature_set.split(",")]
     df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"),usecols=features)
 
-    X_test = df.drop(columns=["breaks"])
+    X_test = df.drop(columns=["breaks"], axis=1)
     y_test = df["breaks"]
 
     y_pred = model.predict(X_test)
@@ -87,18 +93,14 @@ def evaluate_data_op(
     y_test_binary = (y_test != 0).astype(int)
     y_pred_binary = (y_pred != 0).astype(int)
 
-    f1 = f1_score(y_test_binary, y_pred_binary, average="binary", zero_division=0)
+    f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
     return ("true" if f1 < f1_threshold else "false", float(f1))
 
 # Trigger New Run component
 @component(base_image=BASE_IMAGE)
-def trigger_new_run_op(
-    project_id: str,
-    location: str,
-    f1_score: float,
-    trigger_id: str,
-):
+def trigger_new_run_op(project_id: str,location: str,f1_score: float,trigger_id: str):
+    
     import subprocess
 
     print(f"F1 score {f1_score:.4f} is below threshold. Triggering Cloud Build.")
