@@ -213,13 +213,13 @@ gcloud services enable \
 
 -- Grant the Cloud Run runtime service account access to the secret
 gcloud secrets add-iam-policy-binding smtp-password \
-  --member="serviceAccount:71707089683-compute@developer.gserviceaccount.com" \
+  --member="serviceAccount:875591001539-compute@developer.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor" \
   --project=mlops-241257
 
 -- Grant Cloud Storage read access to the Cloud Run runtime service account
 gcloud projects add-iam-policy-binding mlops-241257 \
-  --member="serviceAccount:71707089683-compute@developer.gserviceaccount.com" \
+  --member="serviceAccount:875591001539-compute@developer.gserviceaccount.com" \
   --role="roles/storage.objectViewer"
 
 
@@ -249,7 +249,7 @@ gcloud run services add-iam-policy-binding cloud-build-smtp-notifier \
 
 -- Let Pub/Sub mint tokens for push auth
 gcloud projects add-iam-policy-binding mlops-241257 \
-  --member="serviceAccount:service-71707089683@gcp-sa-pubsub.iam.gserviceaccount.com" \
+  --member="serviceAccount:service-875591001539@gcp-sa-pubsub.iam.gserviceaccount.com" \
   --role="roles/iam.serviceAccountTokenCreator"
 
 -- Create the Cloud Build notifications topic
@@ -266,7 +266,7 @@ gcloud run services describe cloud-build-smtp-notifier \
 gcloud pubsub subscriptions create cloud-builds-smtp-sub \
   --project=mlops-241257 \
   --topic=cloud-builds \
-  --push-endpoint=https://cloud-build-smtp-notifier-sygsyjbblq-ew.a.run.app \
+  --push-endpoint=https://cloud-build-smtp-notifier-875591001539.europe-west1.run.app \
   --push-auth-service-account=cloud-run-pubsub-invoker@mlops-241257.iam.gserviceaccount.com
 
 -- Read service logs
