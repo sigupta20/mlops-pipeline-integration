@@ -4,9 +4,9 @@ from google.cloud import aiplatform
 from google.cloud.aiplatform.pipeline_jobs import PipelineJob
 
 ENV = os.getenv("ENV", "dev")
-PROJECT_ID = "mlops-pipeline-01"
+PROJECT_ID = "mlops-241257"
 REGION = "europe-west1"
-BUCKET_NAME = "mlops-pipeline-01"
+BUCKET_NAME = "mlops-241257"
 
 PIPELINE_ROOT = f"gs://{BUCKET_NAME}/pipelines/{ENV}"
 DISPLAY_NAME = f"mlops-pipeline-{ENV}"
@@ -36,7 +36,6 @@ PIPELINE_PARAMS = {
     "model_display_name": f"mlops-model-{ENV}",
     "feature_set": ",".join(FEATURES),
     "f1_threshold": 0.80,
-    # Model hyperparameters
     "n_neighbors": 5,
     "p": 2,
     "metric": "minkowski",
