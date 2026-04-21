@@ -105,7 +105,7 @@ def evaluate_data_op(
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
     if f1 < f1_threshold:
-        subject = f"[ALERT] Monitoring failed - {env}"
+        subject = f"[ALERT] Monitoring Pipeline Failed - {env}"
         # body = f"F1 score dropped below threshold. Retraining has been triggered.\nEnvironment: {env}\nF1: {f1:.4f}\nThreshold: {f1_threshold:.4f}"
         body = f"""
         F1 score dropped below threshold. Retraining has been triggered.<br><br>
