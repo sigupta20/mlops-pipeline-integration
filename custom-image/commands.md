@@ -1,4 +1,4 @@
-gcloud config set project mlops-pipeline-01
+gcloud config set project mlops-241257
 
 gcloud services enable \
     artifactregistry.googleapis.com \
@@ -12,14 +12,14 @@ gcloud artifacts repositories create mlops-build \
 
 gcloud auth configure-docker europe-west1-docker.pkg.dev
 
-docker build -t mlops-build:1.0.0 .
+docker build -t mlops-build:1.1.0 .
 
-docker tag mlops-build:1.0.0 \
-    europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+docker tag mlops-build:1.1.0 \
+    europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.1.0
 
-docker push europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+docker push europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.1.0
 
-gcloud builds submit --tag europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+gcloud builds submit --tag europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.1.0
 
 or
 cd build-image

@@ -1,4 +1,4 @@
-FROM europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-build/mlops-build:1.0.0
+FROM europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.1.0
 
 WORKDIR /app
 COPY app ./app
@@ -7,4 +7,4 @@ COPY app ./app
 ENV PYTHONPATH=/app
 
 EXPOSE 8080
-CMD ["streamlit", "run", "app/streamlit_app.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]
+CMD ["streamlit", "run", "app/streamlit.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]

@@ -15,11 +15,11 @@ spec:
       serviceAccountName: mlops-ksa
       containers:
         - name: streamlit
-          image: europe-west1-docker.pkg.dev/mlops-pipeline-01/mlops-images/mlops-streamlit
+          image: europe-west1-docker.pkg.dev/mlops-241257/mlops-images/mlops-streamlit
           ports:
             - containerPort: 8080
           env:
             - name: MODEL_BUCKET
-              value: "mlops-pipeline-01"
+              value: "mlops-241257"
             - name: MODEL_GCS_PATH
-              value: "dev/model/model.joblib"
+              value: "artifacts/prod/latest/model.joblib"
