@@ -106,7 +106,6 @@ def evaluate_data_op(
 
     if f1 < f1_threshold:
         subject = f"[ALERT] Monitoring Pipeline Failed - {env}"
-        # body = f"F1 score dropped below threshold. Retraining has been triggered.\nEnvironment: {env}\nF1: {f1:.4f}\nThreshold: {f1_threshold:.4f}"
         body = f"""
         F1 score dropped below threshold. Retraining has been triggered.<br><br>
         <b>Environment:</b> {env}<br>
@@ -114,7 +113,6 @@ def evaluate_data_op(
         <b>Threshold:</b> {f1_threshold:.4f}
         """        
 
-        # message = MIMEText(body)
         message = MIMEText(body, "html")
         message["From"] = sender_email
         message["To"] = recipient_email

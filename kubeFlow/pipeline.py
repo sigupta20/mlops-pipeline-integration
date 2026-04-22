@@ -155,10 +155,10 @@ def train_model_op(
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
-    # print(f"Accuracy: {accuracy}")
-    # print(f"F1 (binary): {f1}")
-    # print(f"Hyperparameters: n_neighbors={n_neighbors}, weights={weights}, metric={metric}, p={p}")
-    # print(f"Features Set: {features}")
+    print(f"Accuracy: {accuracy}")
+    print(f"F1 (binary): {f1}")
+    print(f"Hyperparameters: n_neighbors={n_neighbors}, weights={weights}, metric={metric}, p={p}")
+    print(f"Features Set: {features}")
 
     # Save model locally to be used in next stage
     os.makedirs(model.path, exist_ok=True)
@@ -248,7 +248,6 @@ def evaluate_model_op(
     # Pipeline will fail with error if threshold below 90%
     if f1 < f1_threshold:
         subject = f"[ALERT] MLOps Pipeline Failed - {env}"
-        # body = f"F1 score dropped below threshold. Retraining has been triggered.\nEnvironment: {env}\nF1: {f1:.4f}\nThreshold: {f1_threshold:.4f}"
         body = f"""
         F1 score dropped below threshold.<br><br>
         <b>Environment:</b> {env}<br>
@@ -265,16 +264,11 @@ def evaluate_model_op(
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, recipient_email, message.as_string())
 
-        print(f"Alert email sent to {recipient_email}", flush=True)
+        print(f"Alert email sent to {recipient_email}")
 
         raise ValueError(
             f"Model rejected: f1_score_binary={f1} is below threshold={f1_threshold}"
         )
-    # # Pipeline will fail with error if threshold below 90%
-    # if f1 < f1_threshold:
-    #     raise ValueError(
-    #         f"Model rejected: f1_score_binary={f1} is below threshold={f1_threshold}"
-    #     )
 
     return (deploy_decision, accuracy, f1)
 
