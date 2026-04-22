@@ -222,9 +222,6 @@ def evaluate_model_op(
     metrics.metadata["features"] = feature_set
     metrics.metadata["model_type"] = "knn"
 
-    # print(f"Accuracy: {accuracy}")
-    # print(f"F1: {f1}")
-
     deploy_decision = "true" if f1 >= f1_threshold else "false"
 
     client = storage.Client()
