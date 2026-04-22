@@ -157,7 +157,7 @@ def train_model_op(
 
     print(f"Accuracy: {accuracy}")
     print(f"F1 (binary): {f1}")
-    print(f"Hyperparameters: n_neighbors={n_neighbors}, weights={weights}, metric={metric}, p={p}")
+    print(f"Hyperparameters: n_neighbors={n_neighbors}, metric={metric}, p={p}")
     print(f"Features Set: {features}")
 
     # Save model locally to be used in next stage
