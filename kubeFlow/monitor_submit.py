@@ -3,11 +3,11 @@ import os
 from google.cloud import aiplatform
 from google.cloud.aiplatform.pipeline_jobs import PipelineJob
 
-ENV = "prod"  # dev or prod
+ENV = "prod"
 PROJECT_ID = "mlops-241257"
 REGION = "europe-west1"
-BUCKET_NAME = "mlops-241257" 
-TRIGGER_ID = "3b2b77e0-5f61-4994-b44c-cf38740ef7cf" # Cloudbuild trigger-id
+BUCKET_NAME = "mlops-241257"
+TRIGGER_ID = "3b2b77e0-5f61-4994-b44c-cf38740ef7cf"
 PIPELINE_ROOT = f"gs://{BUCKET_NAME}/monitoring-pipelines/{ENV}"
 DISPLAY_NAME = f"mlops-monitoring-{ENV}"
 
