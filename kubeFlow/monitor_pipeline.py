@@ -108,7 +108,7 @@ def evaluate_data_op(
         secret_path = (f"projects/{project_id}/secrets/{smtp_secret_name}/versions/latest")
         response = sm_client.access_secret_version(request={"name": secret_path})
         sender_password = response.payload.data.decode("UTF-8")
-        subject = f"[ALERT] Monitoring Pipeline - F1 score dropped: {env}"
+        subject = f"[{env}] Monitoring Pipeline Alert - F1 score below threshold"
         body = f"""
         F1 score dropped below threshold. Retraining has been triggered.<br><br>
         <b>Environment:</b> {env}<br>
