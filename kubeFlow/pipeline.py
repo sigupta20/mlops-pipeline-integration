@@ -179,6 +179,7 @@ def train_model_op(
 def evaluate_model_op(
     bucket_name: str,model: Input[Model],prepared_data: Input[Dataset],metrics: Output[Metrics],
     feature_set: str,f1_threshold: float,env: str,
+    sender_email: str,sender_password: str,recipient_email: str,
 ) -> NamedTuple("Outputs", [("deploy_decision", str),("accuracy", float),("f1_score", float),]):
 
     import os
@@ -189,6 +190,8 @@ def evaluate_model_op(
     from google.cloud import storage
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
+    import smtplib
+    from email.mime.text import MIMEText
 
     features = [c.strip() for c in feature_set.split(",")]
 
@@ -244,9 +247,34 @@ def evaluate_model_op(
 
     # Pipeline will fail with error if threshold below 90%
     if f1 < f1_threshold:
+        subject = f"[ALERT] MLOps Pipeline Failed - {env}"
+        # body = f"F1 score dropped below threshold. Retraining has been triggered.\nEnvironment: {env}\nF1: {f1:.4f}\nThreshold: {f1_threshold:.4f}"
+        body = f"""
+        F1 score dropped below threshold.<br><br>
+        <b>Environment:</b> {env}<br>
+        <b>F1:</b> {f1:.4f}<br>
+        <b>Threshold:</b> {f1_threshold:.4f}
+        """        
+
+        message = MIMEText(body, "html")
+        message["From"] = sender_email
+        message["To"] = recipient_email
+        message["Subject"] = subject
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipient_email, message.as_string())
+
+        print(f"Alert email sent to {recipient_email}", flush=True)
+
         raise ValueError(
             f"Model rejected: f1_score_binary={f1} is below threshold={f1_threshold}"
         )
+    # # Pipeline will fail with error if threshold below 90%
+    # if f1 < f1_threshold:
+    #     raise ValueError(
+    #         f"Model rejected: f1_score_binary={f1} is below threshold={f1_threshold}"
+    #     )
 
     return (deploy_decision, accuracy, f1)
 
@@ -325,7 +353,10 @@ def pipeline(
     feature_set: str,
     n_neighbors: int,
     p: int,
-    metric: str = "minkowski",
+    metric: str,
+    sender_email: str,
+    sender_password: str,
+    recipient_email: str,
 ):
     extract_task = extract_data_op(bucket_name=bucket_name, env=env)
     extract_task.set_caching_options(False)
@@ -355,6 +386,9 @@ def pipeline(
         feature_set=feature_set,
         f1_threshold=f1_threshold,
         env=env,
+        sender_email=sender_email,
+        sender_password=sender_password,
+        recipient_email=recipient_email,
     )
     evaluate_task.set_caching_options(False)
 

@@ -39,6 +39,9 @@ PIPELINE_PARAMS = {
     "n_neighbors": 5,
     "p": 2,
     "metric": "minkowski",
+    "sender_email": "siddharth.gupta.ovgu@gmail.com",
+    "sender_password": "ytqrnoqenmlktmwe",
+    "recipient_email": "siddharth.gupta.ovgu@gmail.com",
 }
 
 aiplatform.init(project=PROJECT_ID, location=REGION)

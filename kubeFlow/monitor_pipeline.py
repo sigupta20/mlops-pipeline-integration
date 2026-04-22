@@ -63,7 +63,14 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 # Evaluate data component
 @component(base_image=BASE_IMAGE)
 def evaluate_data_op(
-    bucket_name: str,env: str,prepared_data: Input[Dataset],feature_set: str,f1_threshold: float,
+    bucket_name: str,
+    env: str,
+    prepared_data: Input[Dataset],
+    feature_set: str,
+    f1_threshold: float,
+    sender_email: str,
+    sender_password: str,
+    recipient_email: str,
 ) -> NamedTuple("Outputs", [("retrain_decision", str), ("f1_score", float)]):
 
     import os
@@ -72,6 +79,8 @@ def evaluate_data_op(
     from google.cloud import storage
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import f1_score
+    import smtplib
+    from email.mime.text import MIMEText
 
     # Initialize GCS client
     client = storage.Client()
@@ -95,7 +104,30 @@ def evaluate_data_op(
 
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
+    if f1 < f1_threshold:
+        subject = f"[ALERT] Monitoring Pipeline Failed - {env}"
+        # body = f"F1 score dropped below threshold. Retraining has been triggered.\nEnvironment: {env}\nF1: {f1:.4f}\nThreshold: {f1_threshold:.4f}"
+        body = f"""
+        F1 score dropped below threshold. Retraining has been triggered.<br><br>
+        <b>Environment:</b> {env}<br>
+        <b>F1:</b> {f1:.4f}<br>
+        <b>Threshold:</b> {f1_threshold:.4f}
+        """        
+
+        # message = MIMEText(body)
+        message = MIMEText(body, "html")
+        message["From"] = sender_email
+        message["To"] = recipient_email
+        message["Subject"] = subject
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipient_email, message.as_string())
+
+        print(f"Alert email sent to {recipient_email}", flush=True)
+
     return ("true" if f1 < f1_threshold else "false", float(f1))
+
 
 # Trigger New Run component
 @component(base_image=BASE_IMAGE)
@@ -127,6 +159,9 @@ def monitoring_pipeline(
     feature_set: str,
     f1_threshold: float,
     trigger_id: str,
+    sender_email: str,
+    sender_password: str,
+    recipient_email: str,
 ):
     model_display_name = f"mlops-model-{env}"
 
@@ -142,6 +177,9 @@ def monitoring_pipeline(
         prepared_data=prepare_task.outputs["prepared_data"],
         feature_set=feature_set,
         f1_threshold=f1_threshold,
+        sender_email=sender_email,
+        sender_password=sender_password,
+        recipient_email=recipient_email,
     )
     evaluate_task.set_caching_options(False)
 
