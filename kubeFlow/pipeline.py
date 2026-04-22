@@ -2,7 +2,7 @@ from kfp import dsl, compiler
 from kfp.dsl import component, Dataset, Input, Output, Model, Metrics, Artifact
 from typing import NamedTuple
 
-BASE_IMAGE = "europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.1.0"
+BASE_IMAGE = "europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.2.0"
 
 # Extract data component
 @component(base_image=BASE_IMAGE)
@@ -179,7 +179,8 @@ def train_model_op(
 def evaluate_model_op(
     bucket_name: str,model: Input[Model],prepared_data: Input[Dataset],metrics: Output[Metrics],
     feature_set: str,f1_threshold: float,env: str,
-    sender_email: str,sender_password: str,recipient_email: str,
+    sender_email: str,recipient_email: str,
+    project_id: str,smtp_secret_name: str,
 ) -> NamedTuple("Outputs", [("deploy_decision", str),("accuracy", float),("f1_score", float),]):
 
     import os
@@ -187,7 +188,7 @@ def evaluate_model_op(
     import pandas as pd
     import joblib
     from datetime import datetime
-    from google.cloud import storage
+    from google.cloud import storage, secretmanager
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
     import smtplib
@@ -244,6 +245,10 @@ def evaluate_model_op(
 
     # Pipeline will fail with error if threshold below 90%
     if f1 < f1_threshold:
+        sm_client = secretmanager.SecretManagerServiceClient()
+        secret_path = (f"projects/{project_id}/secrets/{smtp_secret_name}/versions/latest")
+        response = sm_client.access_secret_version(request={"name": secret_path})
+        sender_password = response.payload.data.decode("UTF-8")
         subject = f"[ALERT] MLOps Pipeline Failed - {env}"
         body = f"""
         F1 score dropped below threshold.<br><br>
@@ -346,7 +351,7 @@ def pipeline(
     p: int,
     metric: str,
     sender_email: str,
-    sender_password: str,
+    smtp_secret_name: str,
     recipient_email: str,
 ):
     extract_task = extract_data_op(bucket_name=bucket_name, env=env)
@@ -378,7 +383,8 @@ def pipeline(
         f1_threshold=f1_threshold,
         env=env,
         sender_email=sender_email,
-        sender_password=sender_password,
+        smtp_secret_name=smtp_secret_name,
+        project_id=project_id,
         recipient_email=recipient_email,
     )
     evaluate_task.set_caching_options(False)

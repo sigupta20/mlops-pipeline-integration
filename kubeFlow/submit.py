@@ -35,12 +35,13 @@ PIPELINE_PARAMS = {
     "bucket_name": BUCKET_NAME,
     "model_display_name": f"mlops-model-{ENV}",
     "feature_set": ",".join(FEATURES),
-    "f1_threshold": 0.80,
+    "f1_threshold": 0.90,
     "n_neighbors": 5,
     "p": 2,
     "metric": "minkowski",
     "sender_email": "siddharth.gupta.ovgu@gmail.com",
-    "sender_password": "ytqrnoqenmlktmwe",
+    "smtp_secret_name": "smtp-password",
+    # "sender_password": "ytqrnoqenmlktmwe",
     "recipient_email": "siddharth.gupta.ovgu@gmail.com",
 }
 

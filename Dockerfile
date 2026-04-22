@@ -1,4 +1,4 @@
-FROM europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.1.0
+FROM europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.2.0
 
 WORKDIR /app
 COPY app ./app

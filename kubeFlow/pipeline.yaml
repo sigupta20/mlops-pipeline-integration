@@ -1,0 +1,670 @@
+# PIPELINE DEFINITION
+# Name: mlops-pipeline
+# Description: Train, evaluate and register ML model
+# Inputs:
+#    bucket_name: str
+#    env: str
+#    f1_threshold: float
+#    feature_set: str
+#    location: str
+#    metric: str
+#    model_display_name: str
+#    n_neighbors: int
+#    p: int
+#    project_id: str
+#    recipient_email: str
+#    sender_email: str
+#    smtp_secret_name: str
+# Outputs:
+#    evaluate-model-op-metrics: system.Metrics
+components:
+  comp-condition-1:
+    dag:
+      tasks:
+        register-model-op:
+          cachingOptions: {}
+          componentRef:
+            name: comp-register-model-op
+          inputs:
+            artifacts:
+              model:
+                componentInputArtifact: pipelinechannel--train-model-op-model
+            parameters:
+              display_name:
+                componentInputParameter: pipelinechannel--model_display_name
+              env:
+                componentInputParameter: pipelinechannel--env
+              feature_set:
+                componentInputParameter: pipelinechannel--feature_set
+              location:
+                componentInputParameter: pipelinechannel--location
+              project_id:
+                componentInputParameter: pipelinechannel--project_id
+          taskInfo:
+            name: register-model-op
+    inputDefinitions:
+      artifacts:
+        pipelinechannel--train-model-op-model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+      parameters:
+        pipelinechannel--env:
+          parameterType: STRING
+        pipelinechannel--evaluate-model-op-deploy_decision:
+          parameterType: STRING
+        pipelinechannel--feature_set:
+          parameterType: STRING
+        pipelinechannel--location:
+          parameterType: STRING
+        pipelinechannel--model_display_name:
+          parameterType: STRING
+        pipelinechannel--project_id:
+          parameterType: STRING
+  comp-evaluate-model-op:
+    executorLabel: exec-evaluate-model-op
+    inputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        prepared_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        bucket_name:
+          parameterType: STRING
+        env:
+          parameterType: STRING
+        f1_threshold:
+          parameterType: NUMBER_DOUBLE
+        feature_set:
+          parameterType: STRING
+        project_id:
+          parameterType: STRING
+        recipient_email:
+          parameterType: STRING
+        sender_email:
+          parameterType: STRING
+        smtp_secret_name:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+      parameters:
+        accuracy:
+          parameterType: NUMBER_DOUBLE
+        deploy_decision:
+          parameterType: STRING
+        f1_score:
+          parameterType: NUMBER_DOUBLE
+  comp-extract-data-op:
+    executorLabel: exec-extract-data-op
+    inputDefinitions:
+      parameters:
+        bucket_name:
+          parameterType: STRING
+        env:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-prepare-data-op:
+    executorLabel: exec-prepare-data-op
+    inputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        bucket_name:
+          parameterType: STRING
+        env:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        prepared_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-register-model-op:
+    executorLabel: exec-register-model-op
+    inputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+      parameters:
+        display_name:
+          parameterType: STRING
+        env:
+          parameterType: STRING
+        feature_set:
+          parameterType: STRING
+        location:
+          parameterType: STRING
+        project_id:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        model_resource:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-train-model-op:
+    executorLabel: exec-train-model-op
+    inputDefinitions:
+      artifacts:
+        prepared_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        bucket_name:
+          parameterType: STRING
+        env:
+          parameterType: STRING
+        feature_set:
+          parameterType: STRING
+        metric:
+          parameterType: STRING
+        n_neighbors:
+          parameterType: NUMBER_INTEGER
+        p:
+          parameterType: NUMBER_INTEGER
+    outputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-evaluate-model-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - evaluate_model_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef evaluate_model_op(\n    bucket_name: str,model: Input[Model],prepared_data:\
+          \ Input[Dataset],metrics: Output[Metrics],\n    feature_set: str,f1_threshold:\
+          \ float,env: str,\n    sender_email: str,recipient_email: str,\n    project_id:\
+          \ str,smtp_secret_name: str,\n) -> NamedTuple(\"Outputs\", [(\"deploy_decision\"\
+          , str),(\"accuracy\", float),(\"f1_score\", float),]):\n\n    import os\n\
+          \    import json\n    import pandas as pd\n    import joblib\n    from datetime\
+          \ import datetime\n    from google.cloud import storage, secretmanager\n\
+          \    from sklearn.model_selection import train_test_split\n    from sklearn.metrics\
+          \ import accuracy_score, f1_score\n    import smtplib\n    from email.mime.text\
+          \ import MIMEText\n\n    features = [c.strip() for c in feature_set.split(\"\
+          ,\")]\n\n    df = pd.read_csv(os.path.join(prepared_data.path, \"prepared_data.csv\"\
+          ), usecols=features)\n\n    X = df.drop(columns=[\"breaks\"], axis=1)\n\
+          \    y = df[\"breaks\"]\n\n    _, X_test, _, y_test = train_test_split(X,\
+          \ y, test_size=0.3, random_state=52)\n\n    # Load model from previous stage\
+          \ and predict using test dataset\n    loaded_model = joblib.load(os.path.join(model.path,\
+          \ \"model.joblib\"))\n    y_pred = loaded_model.predict(X_test)\n\n    #\
+          \ convert labels into binary format: [0,1]\n    y_test_binary = (y_test\
+          \ != 0).astype(int)\n    y_pred_binary = (y_pred != 0).astype(int)\n\n \
+          \   # Evaluate model\n    accuracy = accuracy_score(y_test, y_pred)\n  \
+          \  f1 = f1_score(y_test_binary, y_pred_binary, average=\"binary\")\n\n \
+          \   # Log pipeline metrics as metadata\n    metrics.log_metric(\"accuracy\"\
+          , accuracy)\n    metrics.log_metric(\"f1\", f1)\n    metrics.log_metric(\"\
+          num_features\", X.shape[1])\n    metrics.metadata[\"environment\"] = env\n\
+          \    metrics.metadata[\"features\"] = feature_set\n    metrics.metadata[\"\
+          model_type\"] = \"knn\"\n\n    deploy_decision = \"true\" if f1 >= f1_threshold\
+          \ else \"false\"\n\n    client = storage.Client()\n    bucket = client.bucket(bucket_name)\n\
+          \    base = f\"artifacts/{env}/latest\"\n\n    metadata = {\n        \"\
+          Environment\": env,\n        \"Published_At\": datetime.now().isoformat(),\n\
+          \        \"Features\": feature_set,\n        \"Deploy_Decision\": deploy_decision,\n\
+          \        \"Accuracy\": accuracy,\n        \"F1\": f1,\n    }\n    bucket.blob(f\"\
+          {base}/metadata.json\").upload_from_string(\n        json.dumps(metadata,\
+          \ indent=2),\n        content_type=\"application/json\",\n    )\n    print(f\"\
+          Metadata published to gs://{bucket_name}/{base}/metadata.json\")\n\n   \
+          \ # Pipeline will fail with error if threshold below 90%\n    if f1 < f1_threshold:\n\
+          \        sm_client = secretmanager.SecretManagerServiceClient()\n      \
+          \  secret_path = (f\"projects/{project_id}/secrets/{smtp_secret_name}/versions/latest\"\
+          )\n        response = sm_client.access_secret_version(request={\"name\"\
+          : secret_path})\n        sender_password = response.payload.data.decode(\"\
+          UTF-8\")\n        subject = f\"[ALERT] MLOps Pipeline Failed - {env}\"\n\
+          \        body = f\"\"\"\n        F1 score dropped below threshold.<br><br>\n\
+          \        <b>Environment:</b> {env}<br>\n        <b>F1:</b> {f1:.4f}<br>\n\
+          \        <b>Threshold:</b> {f1_threshold:.4f}\n        \"\"\"        \n\n\
+          \        message = MIMEText(body, \"html\")\n        message[\"From\"] =\
+          \ sender_email\n        message[\"To\"] = recipient_email\n        message[\"\
+          Subject\"] = subject\n\n        with smtplib.SMTP_SSL(\"smtp.gmail.com\"\
+          , 465) as server:\n            server.login(sender_email, sender_password)\n\
+          \            server.sendmail(sender_email, recipient_email, message.as_string())\n\
+          \n        print(f\"Alert email sent to {recipient_email}\")\n\n        raise\
+          \ ValueError(\n            f\"Model rejected: f1_score_binary={f1} is below\
+          \ threshold={f1_threshold}\"\n        )\n\n    return (deploy_decision,\
+          \ accuracy, f1)\n\n"
+        image: europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.2.0
+    exec-extract-data-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - extract_data_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef extract_data_op(bucket_name: str, env: str, raw_data: Output[Dataset]):\n\
+          \    import pandas as pd\n    from google.cloud import storage\n    import\
+          \ io\n    import os\n\n    client = storage.Client()\n    bucket = client.bucket(bucket_name)\n\
+          \n    # Read all valid breakdown CSV files from the bucket and collect only\
+          \ files containing the BREAKS column\n    dfs = []\n    for blob in bucket.list_blobs(prefix=\"\
+          data/\"):\n        if blob.name.endswith(\"_breakdowns.csv\"):\n       \
+          \     df = pd.read_csv(io.BytesIO(blob.download_as_string()))\n        \
+          \    if \"BREAKS\" in df.columns:\n                dfs.append(df)\n\n  \
+          \  if not dfs:\n        raise RuntimeError(\"No valid CSV files found\"\
+          )\n\n    # Merge all dataframes and save as raw_data.csv\n    os.makedirs(raw_data.path,\
+          \ exist_ok=True)\n    output_path = os.path.join(raw_data.path, \"raw_data.csv\"\
+          )\n    pd.concat(dfs, ignore_index=True).to_csv(output_path, index=False)\n\
+          \    print(f\"Raw data written to {output_path}\")\n\n    #Upload artifact\
+          \ for testing and model deployment\n    base = f\"artifacts/{env}/latest\"\
+          \n    bucket.blob(f\"{base}/raw_data.csv\").upload_from_filename(output_path)\n\
+          \    print(f\"Raw data published to gs://{bucket_name}/{base}/raw_data.csv\"\
+          )\n\n"
+        image: europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.2.0
+    exec-prepare-data-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - prepare_data_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef prepare_data_op(bucket_name: str, env: str, raw_data: Input[Dataset],\
+          \ prepared_data: Output[Dataset]):\n    import pandas as pd\n    import\
+          \ os\n    from google.cloud import storage\n\n    # Read raw_data.csv and\
+          \ store in a DataFrame\n    df = pd.read_csv(os.path.join(raw_data.path,\
+          \ \"raw_data.csv\"))\n\n    # Row-wise feature engineering (one-hot-encoding),\
+          \ _ means implies this value is not used\n    prepared_rows = []\n    for\
+          \ _, row in df.iterrows():\n        first_stage = row[\"First_stage\"]\n\
+          \        second_stage = row[\"Second_stage\"]\n        third_stage = row[\"\
+          Third_stage\"]\n        fourth_stage = row[\"Fourth_stage\"]\n\n       \
+          \ prepared_rows.append({\n            # Identifiers / metadata\n       \
+          \     \"job_id\": row[\"ID\"],\n            \"priority\": row[\"Priority\"\
+          ],\n            \"family_type\": row[\"Family_type\"],\n\n            #\
+          \ First stage (SMD)\n            \"smd_0\": int(first_stage == \"SMD_0\"\
+          ),\n            \"smd_1\": int(first_stage == \"SMD_1\"),\n            \"\
+          smd_2\": int(first_stage == \"SMD_2\"),\n            \"smd_3\": int(first_stage\
+          \ == \"SMD_3\"),\n            \"smd_4\": int(first_stage == \"SMD_4\"),\n\
+          \            \"processing_time_s1\": float(row[\"Processing_Time_S1\"]),\n\
+          \n            # Second stage (AOI)\n            \"aoi_0\": int(second_stage\
+          \ == \"AOI_0\"),\n            \"aoi_1\": int(second_stage == \"AOI_1\"),\n\
+          \            \"aoi_2\": int(second_stage == \"AOI_2\"),\n            \"\
+          aoi_3\": int(second_stage == \"AOI_3\"),\n            \"aoi_4\": int(second_stage\
+          \ == \"AOI_4\"),\n            \"processing_time_s2\": float(row[\"Processing_Time_S2\"\
+          ]),\n\n            # Third stage (SS)\n            \"ss_0\": int(third_stage\
+          \ == \"SS_0\"),\n            \"ss_1\": int(third_stage == \"SS_1\"),\n \
+          \           \"ss_2\": int(third_stage == \"SS_2\"),\n            \"ss_3\"\
+          : int(third_stage == \"SS_3\"),\n            \"ss_4\": int(third_stage ==\
+          \ \"SS_4\"),\n            \"processing_time_s3\": float(row[\"Processing_Time_S3\"\
+          ]),\n\n            # Fourth stage (CC)\n            \"cc_0\": int(fourth_stage\
+          \ == \"CC_0\"),\n            \"cc_1\": int(fourth_stage == \"CC_1\"),\n\
+          \            \"processing_time_s4\": float(row[\"Processing_Time_S4\"]),\n\
+          \n            \"overall_processing_time\": float(row[\"Overall_processing_time\"\
+          ]),\n            \"overall_waiting_time\": float(row[\"Overall_waiting_time\"\
+          ]),\n            \"tardiness\": float(row[\"Tardiness\"]),\n           \
+          \ \"breaks\": int(row[\"BREAKS\"]),\n        })\n\n    # Save prepared dataset\
+          \ into prepared_data.csv\n    output_path = os.path.join(prepared_data.path,\
+          \ \"prepared_data.csv\")\n    os.makedirs(prepared_data.path, exist_ok=True)\n\
+          \    pd.DataFrame(prepared_rows).to_csv(output_path, index=False)\n    print(f\"\
+          Prepared data written to: {output_path}\")\n\n    #Upload artifact for testing\
+          \ and model deployment\n    client = storage.Client()\n    bucket = client.bucket(bucket_name)\n\
+          \    base = f\"artifacts/{env}/latest\"\n    bucket.blob(f\"{base}/prepared_data.csv\"\
+          ).upload_from_filename(output_path)\n    print(f\"Prepared data published\
+          \ to gs://{bucket_name}/{base}/prepared_data.csv\")\n\n"
+        image: europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.2.0
+    exec-register-model-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - register_model_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef register_model_op(\n    project_id: str,location: str,\n    model:\
+          \ Input[Model],model_resource: Output[Artifact],\n    display_name: str,feature_set:\
+          \ str,env: str,\n    ):\n    import json\n    from google.cloud import aiplatform\n\
+          \n    # Initialize Vertex AI client\n    aiplatform.init(project=project_id,\
+          \ location=location)\n\n    # Format env value so it can be used as a valid\
+          \ label\n    env_label = env.lower().replace(\"_\", \"-\")[:63]\n\n    #\
+          \ Verify whether a model with the same display name already exists\n   \
+          \ models = aiplatform.Model.list(\n        filter=f'display_name=\"{display_name}\"\
+          ',\n        order_by=\"create_time desc\",\n    )\n    # Use latest existing\
+          \ model as parent to create a new version\n    parent_model = models[0].resource_name\
+          \ if models else None\n\n    # Print basic registration details for logging\n\
+          \    print(f\"Registering model from: {model.path}\")\n    print(f\"Display\
+          \ name: {display_name}\")\n    print(f\"Parent model: {parent_model or 'None\
+          \ (first version)'}\")\n\n    # Upload model artifact to Vertex AI Model\
+          \ Registry\n    uploaded_model = aiplatform.Model.upload(\n        display_name=display_name,\n\
+          \        artifact_uri=model.path,\n        serving_container_image_uri=\"\
+          europe-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest\",\n \
+          \       description=f\"env={env}; feature_set={feature_set}\",\n       \
+          \ labels={\n            \"env\": env_label,\n            \"model_type\"\
+          : \"knn\",\n        },\n        parent_model=parent_model,\n        sync=True,\n\
+          \    )\n\n    # Store important model registration details as metadata\n\
+          \    metadata = {\n        \"vertex_model_resource_name\": uploaded_model.resource_name,\n\
+          \        \"display_name\": display_name,\n        \"env\": env,\n      \
+          \  \"feature_set\": feature_set,\n        \"artifact_uri\": model.path,\n\
+          \        \"parent_model\": parent_model,\n    }\n\n    # Write metadata\
+          \ to the output artifact file\n    with open(model_resource.path, \"w\"\
+          ) as f:\n        json.dump(metadata, f, indent=2)\n\n    # Attach metadata\
+          \ to the output artifact for pipeline tracking\n    model_resource.metadata.update(metadata)\n\
+          \    print(f\"Model registered: {uploaded_model.resource_name}\")\n\n"
+        image: europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.2.0
+    exec-train-model-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model_op(\n    bucket_name: str, env: str,prepared_data:\
+          \ Input[Dataset], model: Output[Model],\n    feature_set: str, n_neighbors:\
+          \ int,metric: str, p: int,\n):\n    import pandas as pd\n    import joblib\n\
+          \    import os\n    from google.cloud import storage\n    from sklearn.neighbors\
+          \ import KNeighborsClassifier\n    from sklearn.model_selection import train_test_split\n\
+          \    from sklearn.metrics import accuracy_score, f1_score\n\n    features\
+          \ = [c.strip() for c in feature_set.split(\",\")]\n\n    # Read prepared_data.csv\
+          \ and store in a DataFrame\n    df = pd.read_csv(os.path.join(prepared_data.path,\
+          \ \"prepared_data.csv\"), usecols=features)\n\n    # Target attribute: breaks\n\
+          \    target = \"breaks\"\n\n    # Define features and target attribute\n\
+          \    X = df.drop(columns=[target], axis=1)\n    y = df[target]\n\n    #\
+          \ Split into Training and Test dataset\n    X_train, X_test, y_train, y_test\
+          \ = train_test_split(X, y, test_size=0.3, random_state=52)\n\n    # Train\
+          \ model\n    knn_model = KNeighborsClassifier(n_neighbors=n_neighbors,metric=metric,p=p)\n\
+          \    knn_model.fit(X_train, y_train)\n\n    # Predict using test dataset\n\
+          \    y_pred = knn_model.predict(X_test)\n\n    # convert labels into binary\
+          \ format: [0,1]\n    y_test_binary = (y_test != 0).astype(int)\n    y_pred_binary\
+          \ = (y_pred != 0).astype(int)\n\n    # Evaluate model\n    accuracy = accuracy_score(y_test,\
+          \ y_pred)\n    f1 = f1_score(y_test_binary, y_pred_binary, average=\"binary\"\
+          )\n\n    print(f\"Accuracy: {accuracy}\")\n    print(f\"F1 (binary): {f1}\"\
+          )\n    print(f\"Hyperparameters: n_neighbors={n_neighbors}, metric={metric},\
+          \ p={p}\")\n    print(f\"Features Set: {features}\")\n\n    # Save model\
+          \ locally to be used in next stage\n    os.makedirs(model.path, exist_ok=True)\n\
+          \    model_path = os.path.join(model.path, \"model.joblib\")\n    joblib.dump(knn_model,\
+          \ model_path)\n    print(f\"Model saved at {model_path}\")\n\n    #Upload\
+          \ artifact for testing and model deployment\n    client = storage.Client()\n\
+          \    bucket = client.bucket(bucket_name)\n    base = f\"artifacts/{env}/latest\"\
+          \n    bucket.blob(f\"{base}/model.joblib\").upload_from_filename(model_path)\n\
+          \    print(f\"Model published to gs://{bucket_name}/{base}/model.joblib\"\
+          )\n\n"
+        image: europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.2.0
+pipelineInfo:
+  description: Train, evaluate and register ML model
+  name: mlops-pipeline
+root:
+  dag:
+    outputs:
+      artifacts:
+        evaluate-model-op-metrics:
+          artifactSelectors:
+          - outputArtifactKey: metrics
+            producerSubtask: evaluate-model-op
+    tasks:
+      condition-1:
+        componentRef:
+          name: comp-condition-1
+        dependentTasks:
+        - evaluate-model-op
+        - train-model-op
+        inputs:
+          artifacts:
+            pipelinechannel--train-model-op-model:
+              taskOutputArtifact:
+                outputArtifactKey: model
+                producerTask: train-model-op
+          parameters:
+            pipelinechannel--env:
+              componentInputParameter: env
+            pipelinechannel--evaluate-model-op-deploy_decision:
+              taskOutputParameter:
+                outputParameterKey: deploy_decision
+                producerTask: evaluate-model-op
+            pipelinechannel--feature_set:
+              componentInputParameter: feature_set
+            pipelinechannel--location:
+              componentInputParameter: location
+            pipelinechannel--model_display_name:
+              componentInputParameter: model_display_name
+            pipelinechannel--project_id:
+              componentInputParameter: project_id
+        taskInfo:
+          name: condition-1
+        triggerPolicy:
+          condition: inputs.parameter_values['pipelinechannel--evaluate-model-op-deploy_decision']
+            == 'true'
+      evaluate-model-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-evaluate-model-op
+        dependentTasks:
+        - prepare-data-op
+        - train-model-op
+        inputs:
+          artifacts:
+            model:
+              taskOutputArtifact:
+                outputArtifactKey: model
+                producerTask: train-model-op
+            prepared_data:
+              taskOutputArtifact:
+                outputArtifactKey: prepared_data
+                producerTask: prepare-data-op
+          parameters:
+            bucket_name:
+              componentInputParameter: bucket_name
+            env:
+              componentInputParameter: env
+            f1_threshold:
+              componentInputParameter: f1_threshold
+            feature_set:
+              componentInputParameter: feature_set
+            project_id:
+              componentInputParameter: project_id
+            recipient_email:
+              componentInputParameter: recipient_email
+            sender_email:
+              componentInputParameter: sender_email
+            smtp_secret_name:
+              componentInputParameter: smtp_secret_name
+        taskInfo:
+          name: evaluate-model-op
+      extract-data-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-extract-data-op
+        inputs:
+          parameters:
+            bucket_name:
+              componentInputParameter: bucket_name
+            env:
+              componentInputParameter: env
+        taskInfo:
+          name: extract-data-op
+      prepare-data-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-prepare-data-op
+        dependentTasks:
+        - extract-data-op
+        inputs:
+          artifacts:
+            raw_data:
+              taskOutputArtifact:
+                outputArtifactKey: raw_data
+                producerTask: extract-data-op
+          parameters:
+            bucket_name:
+              componentInputParameter: bucket_name
+            env:
+              componentInputParameter: env
+        taskInfo:
+          name: prepare-data-op
+      train-model-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-train-model-op
+        dependentTasks:
+        - prepare-data-op
+        inputs:
+          artifacts:
+            prepared_data:
+              taskOutputArtifact:
+                outputArtifactKey: prepared_data
+                producerTask: prepare-data-op
+          parameters:
+            bucket_name:
+              componentInputParameter: bucket_name
+            env:
+              componentInputParameter: env
+            feature_set:
+              componentInputParameter: feature_set
+            metric:
+              componentInputParameter: metric
+            n_neighbors:
+              componentInputParameter: n_neighbors
+            p:
+              componentInputParameter: p
+        taskInfo:
+          name: train-model-op
+  inputDefinitions:
+    parameters:
+      bucket_name:
+        parameterType: STRING
+      env:
+        parameterType: STRING
+      f1_threshold:
+        parameterType: NUMBER_DOUBLE
+      feature_set:
+        parameterType: STRING
+      location:
+        parameterType: STRING
+      metric:
+        parameterType: STRING
+      model_display_name:
+        parameterType: STRING
+      n_neighbors:
+        parameterType: NUMBER_INTEGER
+      p:
+        parameterType: NUMBER_INTEGER
+      project_id:
+        parameterType: STRING
+      recipient_email:
+        parameterType: STRING
+      sender_email:
+        parameterType: STRING
+      smtp_secret_name:
+        parameterType: STRING
+  outputDefinitions:
+    artifacts:
+      evaluate-model-op-metrics:
+        artifactType:
+          schemaTitle: system.Metrics
+          schemaVersion: 0.0.1
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.7.0

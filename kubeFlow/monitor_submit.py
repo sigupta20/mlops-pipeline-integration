@@ -3,7 +3,7 @@ import os
 from google.cloud import aiplatform
 from google.cloud.aiplatform.pipeline_jobs import PipelineJob
 
-ENV = "prod"  # dev or prod
+ENV = "dev"  # dev or prod
 PROJECT_ID = "mlops-241257"
 REGION = "europe-west1"
 BUCKET_NAME = "mlops-241257" 
@@ -30,7 +30,7 @@ PIPELINE_PARAMS = {
     "f1_threshold": 0.99,
     "trigger_id": TRIGGER_ID,
     "sender_email": "siddharth.gupta.ovgu@gmail.com",
-    "sender_password": "ytqrnoqenmlktmwe",
+    "smtp_secret_name": "smtp-password",
     "recipient_email": "siddharth.gupta.ovgu@gmail.com",
 }
 

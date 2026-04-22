@@ -2,7 +2,7 @@ from kfp import dsl, compiler
 from kfp.dsl import component, Dataset, Input, Output
 from typing import NamedTuple
 
-BASE_IMAGE = "europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.1.0"
+BASE_IMAGE = "europe-west1-docker.pkg.dev/mlops-241257/mlops-build/mlops-build:1.2.0"
 
 
 # Extract data component
@@ -68,15 +68,14 @@ def evaluate_data_op(
     prepared_data: Input[Dataset],
     feature_set: str,
     f1_threshold: float,
-    sender_email: str,
-    sender_password: str,
-    recipient_email: str,
+    sender_email: str,recipient_email: str,
+    project_id: str,smtp_secret_name: str,
 ) -> NamedTuple("Outputs", [("retrain_decision", str), ("f1_score", float)]):
 
     import os
     import joblib
     import pandas as pd
-    from google.cloud import storage
+    from google.cloud import storage, secretmanager
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import f1_score
     import smtplib
@@ -105,6 +104,10 @@ def evaluate_data_op(
     f1 = f1_score(y_test_binary, y_pred_binary, average="binary")
 
     if f1 < f1_threshold:
+        sm_client = secretmanager.SecretManagerServiceClient()
+        secret_path = (f"projects/{project_id}/secrets/{smtp_secret_name}/versions/latest")
+        response = sm_client.access_secret_version(request={"name": secret_path})
+        sender_password = response.payload.data.decode("UTF-8")
         subject = f"[ALERT] Monitoring Pipeline Failed - {env}"
         body = f"""
         F1 score dropped below threshold. Retraining has been triggered.<br><br>
@@ -158,7 +161,7 @@ def monitoring_pipeline(
     f1_threshold: float,
     trigger_id: str,
     sender_email: str,
-    sender_password: str,
+    smtp_secret_name: str,
     recipient_email: str,
 ):
     model_display_name = f"mlops-model-{env}"
@@ -176,7 +179,8 @@ def monitoring_pipeline(
         feature_set=feature_set,
         f1_threshold=f1_threshold,
         sender_email=sender_email,
-        sender_password=sender_password,
+        smtp_secret_name=smtp_secret_name,
+        project_id=project_id,
         recipient_email=recipient_email,
     )
     evaluate_task.set_caching_options(False)
