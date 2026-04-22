@@ -3,11 +3,11 @@ import os
 from google.cloud import aiplatform
 from google.cloud.aiplatform.pipeline_jobs import PipelineJob
 
-ENV = "prod"  # dev or prod
+ENV = "dev"  # dev or prod
 PROJECT_ID = "mlops-241257"
 REGION = "europe-west1"
 BUCKET_NAME = "mlops-241257" 
-TRIGGER_ID = "baf10635-3a69-475f-84ef-8e0e55707436" # Cloudbuild trigger-id
+TRIGGER_ID = "3b2b77e0-5f61-4994-b44c-cf38740ef7cf" # Cloudbuild trigger-id
 PIPELINE_ROOT = f"gs://{BUCKET_NAME}/monitoring-pipelines/{ENV}"
 DISPLAY_NAME = f"mlops-monitoring-{ENV}"
 
@@ -30,7 +30,7 @@ PIPELINE_PARAMS = {
     "f1_threshold": 0.99,
     "trigger_id": TRIGGER_ID,
     "sender_email": "siddharth.gupta.ovgu@gmail.com",
-    "sender_password": "ytqrnoqenmlktmwe",
+    "smtp_secret_name": "smtp-password",
     "recipient_email": "siddharth.gupta.ovgu@gmail.com",
 }
 

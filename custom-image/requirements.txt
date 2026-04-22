@@ -1,6 +1,7 @@
 kfp
 google-cloud-aiplatform
 google-cloud-storage
+google-cloud-secret-manager
 pandas
 scikit-learn
 joblib

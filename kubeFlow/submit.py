@@ -40,7 +40,7 @@ PIPELINE_PARAMS = {
     "p": 2,
     "metric": "minkowski",
     "sender_email": "siddharth.gupta.ovgu@gmail.com",
-    "sender_password": "ytqrnoqenmlktmwe",
+    "smtp_secret_name": "smtp-password",
     "recipient_email": "siddharth.gupta.ovgu@gmail.com",
 }
 

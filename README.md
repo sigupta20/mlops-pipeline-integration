@@ -1,5 +1,4 @@
 # mlops_pipeline
-gcloud config set project mlops-pipeline-01
 gcloud config set project mlops-241257
 gcloud auth application-default login
 gcloud auth login
