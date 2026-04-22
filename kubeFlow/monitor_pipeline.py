@@ -108,7 +108,7 @@ def evaluate_data_op(
         secret_path = (f"projects/{project_id}/secrets/{smtp_secret_name}/versions/latest")
         response = sm_client.access_secret_version(request={"name": secret_path})
         sender_password = response.payload.data.decode("UTF-8")
-        subject = f"[ALERT] Monitoring Pipeline Failed - {env}"
+        subject = f"[{env}] Monitoring Pipeline Alert - F1 score below threshold"
         body = f"""
         F1 score dropped below threshold. Retraining has been triggered.<br><br>
         <b>Environment:</b> {env}<br>
@@ -125,7 +125,7 @@ def evaluate_data_op(
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, recipient_email, message.as_string())
 
-        print(f"Alert email sent to {recipient_email}", flush=True)
+        print(f"Alert email sent to {recipient_email}")
 
     return ("true" if f1 < f1_threshold else "false", float(f1))
 
