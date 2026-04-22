@@ -3,7 +3,7 @@ import os
 from google.cloud import aiplatform
 from google.cloud.aiplatform.pipeline_jobs import PipelineJob
 
-ENV = "dev"  # dev or prod
+ENV = "prod"  # dev or prod
 PROJECT_ID = "mlops-241257"
 REGION = "europe-west1"
 BUCKET_NAME = "mlops-241257" 
