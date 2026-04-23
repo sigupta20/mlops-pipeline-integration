@@ -143,6 +143,7 @@ def trigger_new_run_op(project_id: str,location: str,f1_score: float,trigger_id:
         "run", trigger_id,
         "--region", location,
         "--project", project_id,
+        "--branch", "production"
     ]
 
     subprocess.run(cmd, check=True)
