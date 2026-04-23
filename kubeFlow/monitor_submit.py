@@ -7,7 +7,7 @@ ENV = "prod"
 PROJECT_ID = "mlops-241257"
 REGION = "europe-west1"
 TRIGGER_ID = "3b2b77e0-5f61-4994-b44c-cf38740ef7cf"
-PIPELINE_ROOT = f"gs://{BUCKET_NAME}/monitoring-pipelines/{ENV}"
+PIPELINE_ROOT = f"gs://{PROJECT_ID}/monitoring-pipelines/{ENV}"
 DISPLAY_NAME = f"mlops-monitoring-{ENV}"
 
 FEATURES = [
