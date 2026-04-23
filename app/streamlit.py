@@ -32,13 +32,13 @@ st.success("Model loaded successfully")
 
 # Create input form for user feature values
 with st.form("prediction_form"):
-    job_id = st.number_input("Job ID", min_value=0, step=1)
+    job_id = st.number_input("Job ID", min_value=0, max_value=200, step=1)
     priority = st.number_input("Priority", min_value=0, max_value=20, step=1)
-    family_type = st.number_input("Family type", min_value=0, step=1)
+    family_type = st.number_input("Family type", min_value=0, max_value=40, step=1)
 
-    overall_processing_time = st.number_input("Overall Processing Time", min_value=0.0)
-    overall_waiting_time = st.number_input("Overall Waiting Time", min_value=0.0)
-    tardiness = st.number_input("Tardiness", min_value=0.0)
+    overall_processing_time = st.number_input("Overall Processing Time", min_value=0)
+    overall_waiting_time = st.number_input("Overall Waiting Time", min_value=0)
+    tardiness = st.number_input("Tardiness", min_value=0)
 
     # Submit button to trigger prediction
     submitted = st.form_submit_button("Predict")
@@ -49,9 +49,9 @@ if submitted:
         "job_id": int(job_id),
         "priority": int(priority),
         "family_type": int(family_type),
-        "overall_processing_time": float(overall_processing_time),
-        "overall_waiting_time": float(overall_waiting_time),
-        "tardiness": float(tardiness),
+        "overall_processing_time": int(overall_processing_time),
+        "overall_waiting_time": int(overall_waiting_time),
+        "tardiness": int(tardiness),
     }
 
     # Generate prediction from the loaded model
