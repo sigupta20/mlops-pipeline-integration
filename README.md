@@ -109,25 +109,6 @@ kubectl apply -f service.yaml
 kubectl get svc mlops-svc // get external IP
 
 
-## STEP 9 – Serve Predictions
-curl http://34.52.178.179/health
-
-curl -X POST http://EXTERNAL_IP/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-        "features": [1,2,3,4,5,6,7,8,9,10,
-                     11,12,13,14,15,16,17,
-                     100,5,0]
-      }'
-
-curl -X POST http://34.52.178.179/predict -H "Content-Type: application/json" \
-  -d '{
-        "features": [1,2,3,4,5,6,7,8,9,10,
-                     11,12,13,14,15,16,17,
-                     100,5,0]
-      }'
-
-
 
 ## Vertex AI pipeline implementation steps
 

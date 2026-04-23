@@ -286,7 +286,7 @@ def register_model_op(
     from google.cloud import aiplatform
 
     # Initialize Vertex AI client
-    aiplatform.init(project=project_id, location=location)
+    aiplatform.init(project=project_id, location=location,staging_bucket=f"gs://{project_id}")
 
     # Format env value so it can be used as a valid label
     env_label = env.lower().replace("_", "-")[:63]
