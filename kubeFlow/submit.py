@@ -6,9 +6,7 @@ from google.cloud.aiplatform.pipeline_jobs import PipelineJob
 ENV = os.getenv("ENV", "dev")
 PROJECT_ID = "mlops-241257"
 REGION = "europe-west1"
-BUCKET_NAME = "mlops-241257"
-
-PIPELINE_ROOT = f"gs://{BUCKET_NAME}/pipelines/{ENV}"
+PIPELINE_ROOT = f"gs://{PROJECT_ID}/pipelines/{ENV}"
 DISPLAY_NAME = f"mlops-pipeline-{ENV}"
 TEMPLATE_PATH = "pipeline.yaml"
 
@@ -32,7 +30,7 @@ PIPELINE_PARAMS = {
     "project_id": PROJECT_ID,
     "location": REGION,
     "env": ENV,
-    "bucket_name": BUCKET_NAME,
+    "bucket_name": PROJECT_ID,
     "model_display_name": f"mlops-model-{ENV}",
     "feature_set": ",".join(FEATURES),
     "f1_threshold": 0.80,
@@ -51,6 +49,7 @@ job = PipelineJob(
     template_path=TEMPLATE_PATH,
     pipeline_root=PIPELINE_ROOT,
     parameter_values=PIPELINE_PARAMS,
+    failure_policy = 'fast'
 )
 
 job.submit(experiment=f"mlops-pipeline-{ENV}")
