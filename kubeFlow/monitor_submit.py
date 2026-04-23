@@ -43,6 +43,8 @@ job = PipelineJob(
     parameter_values=PIPELINE_PARAMS,
 )
 job.submit(experiment=f"mlops-monitoring-{ENV}")
+job.wait()
+
 
 # Uncomment this part to create a schedule and comment from line 40-49
 # One file can be used for both scheduling and to run the pipeline

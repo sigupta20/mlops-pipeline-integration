@@ -54,3 +54,4 @@ job = PipelineJob(
 )
 
 job.submit(experiment=f"mlops-pipeline-{ENV}")
+job.wait()
