@@ -49,9 +49,9 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
             "job_id": row["ID"],
             "priority": row["Priority"],
             "family_type": row["Family_type"],
-            "overall_processing_time": float(row["Overall_processing_time"]),
-            "overall_waiting_time": float(row["Overall_waiting_time"]),
-            "tardiness": float(row["Tardiness"]),
+            "overall_processing_time": int(row["Overall_processing_time"]),
+            "overall_waiting_time": int(row["Overall_waiting_time"]),
+            "tardiness": int(row["Tardiness"]),
             "breaks": int(row["BREAKS"]),
         })
 
