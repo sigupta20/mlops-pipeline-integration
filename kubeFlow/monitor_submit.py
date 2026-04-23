@@ -34,7 +34,7 @@ PIPELINE_PARAMS = {
     "recipient_email": "siddharth.gupta.ovgu@gmail.com",
 }
 
-aiplatform.init(project=PROJECT_ID, location=REGION)
+aiplatform.init(project=PROJECT_ID, location=REGION,staging_bucket=f"gs://{BUCKET_NAME}")
 
 job = PipelineJob(
     display_name=DISPLAY_NAME,
