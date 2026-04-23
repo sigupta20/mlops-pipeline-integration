@@ -51,6 +51,7 @@ job = PipelineJob(
     template_path=TEMPLATE_PATH,
     pipeline_root=PIPELINE_ROOT,
     parameter_values=PIPELINE_PARAMS,
+    failure_policy = 'fast'
 )
 
 job.submit(experiment=f"mlops-pipeline-{ENV}")
