@@ -68,7 +68,7 @@ def prepare_data_op(bucket_name: str, env: str, raw_data: Input[Dataset], prepar
             "smd_2": int(first_stage == "SMD_2"),
             "smd_3": int(first_stage == "SMD_3"),
             "smd_4": int(first_stage == "SMD_4"),
-            "processing_time_s1": float(row["Processing_Time_S1"]),
+            "processing_time_s1": int(row["Processing_Time_S1"]),
 
             # Second stage (AOI)
             "aoi_0": int(second_stage == "AOI_0"),
@@ -76,7 +76,7 @@ def prepare_data_op(bucket_name: str, env: str, raw_data: Input[Dataset], prepar
             "aoi_2": int(second_stage == "AOI_2"),
             "aoi_3": int(second_stage == "AOI_3"),
             "aoi_4": int(second_stage == "AOI_4"),
-            "processing_time_s2": float(row["Processing_Time_S2"]),
+            "processing_time_s2": int(row["Processing_Time_S2"]),
 
             # Third stage (SS)
             "ss_0": int(third_stage == "SS_0"),
@@ -84,16 +84,16 @@ def prepare_data_op(bucket_name: str, env: str, raw_data: Input[Dataset], prepar
             "ss_2": int(third_stage == "SS_2"),
             "ss_3": int(third_stage == "SS_3"),
             "ss_4": int(third_stage == "SS_4"),
-            "processing_time_s3": float(row["Processing_Time_S3"]),
+            "processing_time_s3": int(row["Processing_Time_S3"]),
 
             # Fourth stage (CC)
             "cc_0": int(fourth_stage == "CC_0"),
             "cc_1": int(fourth_stage == "CC_1"),
-            "processing_time_s4": float(row["Processing_Time_S4"]),
+            "processing_time_s4": int(row["Processing_Time_S4"]),
 
-            "overall_processing_time": float(row["Overall_processing_time"]),
-            "overall_waiting_time": float(row["Overall_waiting_time"]),
-            "tardiness": float(row["Tardiness"]),
+            "overall_processing_time": int(row["Overall_processing_time"]),
+            "overall_waiting_time": int(row["Overall_waiting_time"]),
+            "tardiness": int(row["Tardiness"]),
             "breaks": int(row["BREAKS"]),
         })
 
