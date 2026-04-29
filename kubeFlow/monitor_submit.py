@@ -8,7 +8,6 @@ PROJECT_ID = "mlops-241257"
 REGION = "europe-west1"
 TRIGGER_ID = "3b2b77e0-5f61-4994-b44c-cf38740ef7cf"
 PIPELINE_ROOT = f"gs://{PROJECT_ID}/monitoring-pipelines/{ENV}"
-DISPLAY_NAME = f"mlops-monitoring-{ENV}"
 
 FEATURES = [
     "job_id",
@@ -36,7 +35,7 @@ PIPELINE_PARAMS = {
 aiplatform.init(project=PROJECT_ID, location=REGION)
 
 job = PipelineJob(
-    display_name=DISPLAY_NAME,
+    display_name=f"mlops-monitoring-{ENV}",
     template_path="monitor_pipeline.yaml",
     pipeline_root=PIPELINE_ROOT,
     parameter_values=PIPELINE_PARAMS,
@@ -46,15 +45,12 @@ job.submit(experiment=f"mlops-monitoring-{ENV}")
 job.wait()
 
 
-# Uncomment this part to create a schedule and comment from line 40-49
+# Uncomment this part to create a schedule and comment from line 52-58
 # One file can be used for both scheduling and to run the pipeline
 
-# schedule = aiplatform.PipelineJobSchedule.create(
+# schedule = job.create_schedule(
 #     display_name="mlops-monitoring-schedule",
-#     template_path="monitor_pipeline.yaml",
-#     pipeline_root=PIPELINE_ROOT,
-#     parameter_values=PIPELINE_PARAMS,
-#     cron="0 */12 * * *",
+#     cron="TZ=Europe/Berlin 0 6,18 * * *",
 #     max_concurrent_run_count=1,
 # )
 # print("Monitoring schedule created successfully!")

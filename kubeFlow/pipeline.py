@@ -12,10 +12,11 @@ def extract_data_op(bucket_name: str, env: str, raw_data: Output[Dataset]):
     import io
     import os
 
+    # Create GCS client
     client = storage.Client()
     bucket = client.bucket(bucket_name)
 
-    # Read all valid breakdown CSV files from the bucket and collect only files containing the BREAKS column
+    # Read CSV files from the bucket with machine breakdowns
     dfs = []
     for blob in bucket.list_blobs(prefix="data/"):
         if blob.name.endswith("_breakdowns.csv"):
@@ -125,6 +126,7 @@ def train_model_op(
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, f1_score
     
+    # Read features from the list
     features = [c.strip() for c in feature_set.split(",")]
 
     # Read prepared_data.csv and store in a DataFrame
