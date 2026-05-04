@@ -80,8 +80,9 @@ def test_raw_data_exists_and_has_reasonable_id_quality():
     # Must have more than a handful of unique IDs
     n_rows = len(df)
     n_unique = df["ID"].nunique(dropna=True)
-    assert n_unique > 10, f"Too few unique IDs: {n_unique}"
-    assert n_unique / max(n_rows, 1) > 0.05, f"Unique ID ratio too low: {n_unique}/{n_rows}"
+    assert n_rows > 0, "Raw data is empty"
+    assert n_unique >= 100, f"Too few unique IDs: {n_unique}"
+    assert n_unique < n_rows, f"Expected repeated job IDs, but all IDs appear unique: {n_unique}/{n_rows}"
 
 
 def test_prepared_data_schema_and_domain_rules():
