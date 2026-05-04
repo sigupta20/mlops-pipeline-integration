@@ -136,7 +136,7 @@ def train_model_op(
     target = "breaks"
 
     # Define features and target attribute
-    X = df.drop(columns=[target], axis=1)
+    X = df.drop(columns=[target])
     y = df[target]
 
     # Split into Training and Test dataset
@@ -200,7 +200,7 @@ def evaluate_model_op(
 
     df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"), usecols=features)
 
-    X = df.drop(columns=["breaks"], axis=1)
+    X = df.drop(columns=["breaks"])
     y = df["breaks"]
 
     _, X_test, _, y_test = train_test_split(X, y, test_size=0.3, random_state=52)
