@@ -93,7 +93,7 @@ def evaluate_data_op(
     features = [c.strip() for c in feature_set.split(",")]
     df = pd.read_csv(os.path.join(prepared_data.path, "prepared_data.csv"),usecols=features)
 
-    X_test = df.drop(columns=["breaks"], axis=1)
+    X_test = df.drop(columns=["breaks"])
     y_test = df["breaks"]
 
     y_pred = model.predict(X_test)

@@ -136,7 +136,7 @@ def train_model_op(
     target = "breaks"
 
     # Define features and target attribute
-    X = df.drop(columns=[target], axis=1)
+    X = df.drop(columns=[target])
     y = df[target]
 
     # Split into Training and Test dataset
