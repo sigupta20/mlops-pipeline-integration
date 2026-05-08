@@ -1,0 +1,9 @@
+<html>
+  <body>
+    <h2>Cloud Build failed</h2>
+    <p><strong>Project:</strong> {{.Build.ProjectId}}</p>
+    <p><strong>Build ID:</strong> {{.Build.Id}}</p>
+    <p><strong>Status:</strong> {{.Build.Status}}</p>
+	<p><strong>Build URL:</strong> <a href="{{.Build.LogUrl}}">Open failed build logs</a></p>
+  </body>
+</html>

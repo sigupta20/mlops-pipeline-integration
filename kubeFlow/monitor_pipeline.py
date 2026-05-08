@@ -62,7 +62,7 @@ def prepare_data_op(raw_data: Input[Dataset], prepared_data: Output[Dataset]):
 
 # Evaluate data component
 @component(base_image=BASE_IMAGE)
-def evaluate_data_op(
+def evaluate_model_op(
     bucket_name: str,
     env: str,
     prepared_data: Input[Dataset],
@@ -173,7 +173,7 @@ def monitoring_pipeline(
     prepare_task = prepare_data_op(raw_data=extract_task.outputs["raw_data"],)
     prepare_task.set_caching_options(False)
 
-    evaluate_task = evaluate_data_op(
+    evaluate_task = evaluate_model_op(
         bucket_name=bucket_name,
         env=env,
         prepared_data=prepare_task.outputs["prepared_data"],
