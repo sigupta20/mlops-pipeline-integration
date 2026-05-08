@@ -1,0 +1,24 @@
+apiVersion: cloud-build-notifiers/v1
+kind: SMTPNotifier
+metadata:
+  name: gmail-build-failure-email
+spec:
+  notification:
+    filter: build.status == Build.Status.FAILURE
+    params:
+      buildStatus: $(build.status)
+    delivery:
+      server: smtp.gmail.com
+      port: "587"
+      sender: "siddharth.gupta.ovgu@gmail.com"
+      from: "siddharth.gupta.ovgu@gmail.com"
+      recipients:
+        - "siddharth.gupta.ovgu@gmail.com"
+      password:
+        secretRef: smtp-password
+    template:
+      type: golang
+      uri: gs://mlops-241257/smtp/smtp.html
+  secrets:
+    - name: smtp-password
+      value: projects/mlops-241257/secrets/smtp-password/versions/latest
