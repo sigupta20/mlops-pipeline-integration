@@ -4,8 +4,8 @@ from google.cloud import storage
 from app.predictor import Predictor, FEATURE_COLUMNS
 
 # Configure Streamlit page settings and title
-st.set_page_config(page_title="Manufacturing Anomaly Detection")
-st.title("Manufacturing Anomaly Detection")
+st.set_page_config(page_title="Manufacturing Machine Breakdown Predection")
+st.title("Manufacturing Machine Breakdown Predection")
 
 # Read model location from environment variables
 MODEL_BUCKET = os.getenv("MODEL_BUCKET")
@@ -61,4 +61,4 @@ if submitted:
     if pred == 1:
         st.error("⚠️ Breakdown predicted")
     else:
-        st.success("✅ No breakdown predicted")
+        st.success("✅ Breakdown not predicted")
