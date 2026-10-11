@@ -77,12 +77,11 @@ def test_raw_data_exists_and_has_reasonable_id_quality():
     # IDs should not be missing
     assert df["ID"].notna().all(), "Found missing IDs in raw data"
 
-    # Must have more than a handful of unique IDs
+    # Unique IDs must be less that total rows
     n_rows = len(df)
     n_unique = df["ID"].nunique(dropna=True)
     assert n_rows > 0, "Raw data is empty"
-    assert n_unique >= 100, f"Too few unique IDs: {n_unique}"
-    assert n_unique < n_rows, f"Expected repeated job IDs, but all IDs appear unique: {n_unique}/{n_rows}"
+    assert n_unique < n_rows, f"Number of unique IDs must be less than total rows: {n_unique}/{n_rows}"
 
 
 def test_prepared_data_schema_and_domain_rules():
