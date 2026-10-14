@@ -9,6 +9,7 @@ REGION = "europe-west1"
 PIPELINE_ROOT = f"gs://{PROJECT_ID}/pipelines/{ENV}"
 DISPLAY_NAME = f"mlops-pipeline-{ENV}"
 TEMPLATE_PATH = "pipeline.yaml"
+F1_THRESHOLD = 0.90 if ENV == "prod" else 0.80
 
 # List of features
 FEATURES = [
@@ -33,7 +34,7 @@ PIPELINE_PARAMS = {
     "bucket_name": PROJECT_ID,
     "model_display_name": f"mlops-model-{ENV}",
     "feature_set": ",".join(FEATURES),
-    "f1_threshold": 0.80,
+    "f1_threshold": F1_THRESHOLD,
     "n_neighbors": 5,
     "p": 2,
     "metric": "minkowski",
